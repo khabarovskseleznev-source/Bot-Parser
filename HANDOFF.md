@@ -6,7 +6,7 @@
 
 ## Статус проекта
 
-**Фаза:** Парсеры и планировщик готовы → следующий модуль: processors (Этап 2 — RAG + LLM)
+**Фаза:** Этап 3 — bot/ (Telegram-бот, handlers, доставка новостей)
 **Последнее обновление:** 2026-03-07
 
 ---
@@ -34,9 +34,18 @@
   - `social.py` — заглушка
 - [x] **`scheduler.py`** — APScheduler AsyncIOScheduler:
   - Задачи per-source, IntervalTrigger, max_instances=1
-  - `on_items` callback (пока None, подключить в Этапе 2)
+  - `on_items` callback подключён к pipeline
   - `reload_client()` — динамическое обновление задач без перезапуска
 - [x] Дорожная карта — `docs/roadmap.md`
+- [x] **Этап 2 — processors/ (RAG + LLM pipeline):**
+  - `database/crud.py` — CRUD (save_news, get_by_hash, mark_sent, save_feedback, get_or_create_client, get_or_create_source)
+  - `processors/embeddings.py` — sentence-transformers, asyncio.to_thread, ленивая загрузка модели
+  - `processors/deduplicator.py` — hash-check SHA-256 (SQL) + cosine similarity (ChromaDB, порог 0.92)
+  - `processors/vector_store.py` — ChromaDB PersistentClient, коллекции `client_{client_id}`, cosine space
+  - `processors/rag.py` — поиск top-k + формирование few-shot текстового контекста
+  - `processors/llm.py` — Ollama HTTP API, промпт, JSON-парсинг (summary/sentiment/hashtags), fallback
+  - `processors/pipeline.py` — оркестратор, `make_on_items_callback()` для scheduler
+  - `main.py` — обновлён: `build_pipelines()`, pipeline подключён к scheduler
 
 ---
 
@@ -57,15 +66,15 @@
 
 ## Следующий шаг
 
-**Этап 2 — processors/ (RAG + LLM):**
+**Этап 3 — bot/ (Telegram-бот, handlers, доставка новостей):**
 
-1. `database/crud.py` — CRUD-операции (save_news, get_by_hash, mark_sent, save_feedback)
-2. `processors/embeddings.py` — генерация эмбеддингов (sentence-transformers, asyncio.to_thread)
-3. `processors/vector_store.py` — ChromaDB: add, query, коллекции `client_{client_id}`
-4. `processors/deduplicator.py` — hash-check (SHA-256) + TF-IDF cosine similarity
-5. `processors/rag.py` — поиск k ближайших + формирование few-shot контекста
-6. `processors/llm.py` — вызов Ollama, промпт, парсинг ответа (summary/sentiment/hashtags)
-7. Подключить pipeline в `scheduler.py` → `on_items`
+1. `bot/bot.py` — инициализация aiogram 3.x Bot + Dispatcher, регистрация роутеров
+2. `bot/handlers/start.py` — `/start`, приветствие, регистрация клиента
+3. `bot/handlers/settings.py` — `/settings`, управление ключевыми словами и частотой доставки
+4. `bot/handlers/feedback.py` — обработка инлайн-кнопок (like/dislike/saved) через `save_feedback`
+5. `bot/sender.py` — форматирование и отправка новостей (`mark_sent` после отправки)
+6. Интеграция sender с pipeline: вызов `sender.send_news()` в конце `pipeline._process_item()`
+7. Подключение бота к `main.py`: `asyncio.gather(bot.run(), scheduler_event_wait)`
 
 ---
 
