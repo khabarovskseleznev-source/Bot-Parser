@@ -1,0 +1,41 @@
+# Telegram
+aiogram==3.13.1
+telethon==1.36.0
+
+# Парсинг
+feedparser==6.0.11
+aiohttp==3.10.10
+beautifulsoup4==4.12.3
+lxml==5.3.0
+
+# Векторное хранилище и эмбеддинги
+chromadb==0.5.20
+sentence-transformers==3.3.1
+
+# LLM
+ollama==0.4.4
+
+# База данных
+sqlalchemy==2.0.36
+aiosqlite==0.20.0
+
+# Валидация конфигов
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Планировщик
+apscheduler==3.10.4
+
+# Логирование
+loguru==0.7.3
+
+# Дедупликация
+scikit-learn==1.5.2
+
+# Утилиты
+python-dotenv==1.0.1
+tenacity==9.0.0  # повторные попытки с экспоненциальной задержкой
+
+# Тесты
+pytest==8.3.4
+pytest-asyncio==0.24.0

@@ -1,0 +1,52 @@
+# Секреты и окружение
+.env
+*.session
+*.session-journal
+
+# База данных
+*.db
+*.db-shm
+*.db-wal
+
+# Данные клиентов (сырые новости, сессии, конфиги с реальными данными)
+data/
+
+# ChromaDB (хранится в data/, но на всякий случай)
+chroma/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Виртуальное окружение
+venv/
+.venv/
+env/
+ENV/
+
+# Логи
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
