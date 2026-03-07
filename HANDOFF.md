@@ -6,7 +6,7 @@
 
 ## Статус проекта
 
-**Фаза:** Этап 3 — bot/ (Telegram-бот, handlers, доставка новостей)
+**Фаза:** Этап 5 — интеграционный тест и доработки
 **Последнее обновление:** 2026-03-07
 
 ---
@@ -46,6 +46,22 @@
   - `processors/llm.py` — Ollama HTTP API, промпт, JSON-парсинг (summary/sentiment/hashtags), fallback
   - `processors/pipeline.py` — оркестратор, `make_on_items_callback()` для scheduler
   - `main.py` — обновлён: `build_pipelines()`, pipeline подключён к scheduler
+- [x] **Этап 3 — bot/ (Telegram-бот, handlers, доставка новостей):**
+  - `bot/bot.py` — `create_bot()` + `create_dispatcher()`, регистрация роутеров
+  - `bot/handlers/start.py` — `/start`: приветствие, `get_or_create_client`, создание Settings по умолчанию
+  - `bot/handlers/settings.py` — `/settings`: FSM-диалог, управление keywords, frequency, digest_mode
+  - `bot/handlers/feedback.py` — инлайн-кнопки `fb:<reaction>:<news_id>`, `save_feedback`
+  - `bot/sender.py` — `NewsSender.send_news()`, `send_digest()` (compact/full режимы)
+  - `processors/pipeline.py` — keyword-фильтр + instant/hourly/daily ветвление
+  - `main.py` — полностью обновлён: два планировщика (парсинг + дайджест)
+- [x] **Этап 4 — тестирование и деплой:**
+  - `database/models.py` — добавлены поля `News.keyword_filtered`, `Settings.digest_mode`
+  - `database/crud.py` — добавлены `get_client_settings()`, `get_unsent_news()`
+  - `migrate.py` — скрипт миграции для существующих БД
+  - `data/clients/test_client/config.json` — тестовый конфиг (RSS Lenta.ru)
+  - `tests/conftest.py`, `test_crud.py`, `test_config_schema.py`, `test_keyword_filter.py`
+  - `pytest.ini` — asyncio_mode=auto
+  - `Dockerfile`, `docker-compose.yml`, `.dockerignore`
 
 ---
 
@@ -61,26 +77,31 @@
 | Логирование | Loguru |
 | Валидация конфигов | Pydantic v2 |
 | Планировщик | APScheduler AsyncIOScheduler, задача per-source, max_instances=1 |
+| Доставка новостей | `NewsSender.send_news()` — instant; `send_digest()` — hourly/daily |
+| Keyword-фильтрация | Сохранять в БД + ChromaDB, не отправлять (news.keyword_filtered=True) |
+| Формат дайджеста | `Settings.digest_mode`: compact (один список) / full (по одному с паузой 2с) |
+| Feedback | Callback-данные формата `fb:<reaction>:<news_id>`, сохранение в таблицу `feedback` |
+| Docker | `docker-compose up --build`; ollama как отдельный сервис |
 
 ---
 
 ## Следующий шаг
 
-**Этап 3 — bot/ (Telegram-бот, handlers, доставка новостей):**
+**Этап 5 — интеграционный тест:**
 
-1. `bot/bot.py` — инициализация aiogram 3.x Bot + Dispatcher, регистрация роутеров
-2. `bot/handlers/start.py` — `/start`, приветствие, регистрация клиента
-3. `bot/handlers/settings.py` — `/settings`, управление ключевыми словами и частотой доставки
-4. `bot/handlers/feedback.py` — обработка инлайн-кнопок (like/dislike/saved) через `save_feedback`
-5. `bot/sender.py` — форматирование и отправка новостей (`mark_sent` после отправки)
-6. Интеграция sender с pipeline: вызов `sender.send_news()` в конце `pipeline._process_item()`
-7. Подключение бота к `main.py`: `asyncio.gather(bot.run(), scheduler_event_wait)`
+1. Заполнить `.env` реальными токенами и запустить `python main.py`
+2. Убедиться что `/start` создаёт клиента и Settings в БД
+3. Запустить `pytest -v` — все unit-тесты должны пройти
+4. При наличии существующей БД запустить `python migrate.py` перед стартом
+5. Проверить отправку дайджеста вручную (вызвать `sender.send_digest(client_id, chat_id)`)
+6. При необходимости вынести `OLLAMA_URL` и таймаут модели в `.env`
 
 ---
 
 ## Открытые вопросы
 
-Нет открытых вопросов.
+- Нужен ли rate-limit guard в `_send_full_digest` (сейчас пауза 2с между сообщениями)?
+- Стоит ли хранить историю дайджестов в отдельной таблице для аналитики?
 
 ---
 

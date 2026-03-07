@@ -12,7 +12,7 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.models import Client, Feedback, News, Source
+from database.models import Client, Feedback, News, Settings, Source
 
 
 def compute_hash(text: str) -> str:
@@ -225,6 +225,49 @@ async def get_or_create_client(
     await session.refresh(client)
     logger.info("Клиент создан: str_id={}, db_id={}", client_str_id, client.id)
     return client
+
+
+async def get_client_settings(
+    session: AsyncSession,
+    client_id: int,
+) -> Optional[Settings]:
+    """Получить настройки клиента.
+
+    Args:
+        session: Сессия SQLAlchemy.
+        client_id: ID клиента.
+
+    Returns:
+        Объект Settings или None.
+    """
+    result = await session.execute(
+        select(Settings).where(Settings.client_id == client_id)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_unsent_news(
+    session: AsyncSession,
+    client_id: int,
+) -> list[News]:
+    """Получить все неотправленные, не-дубликаты, не-отфильтрованные новости клиента.
+
+    Args:
+        session: Сессия SQLAlchemy.
+        client_id: ID клиента.
+
+    Returns:
+        Список объектов News.
+    """
+    result = await session.execute(
+        select(News).where(
+            News.client_id == client_id,
+            News.sent_to_user.is_(False),
+            News.is_duplicate.is_(False),
+            News.keyword_filtered.is_(False),
+        )
+    )
+    return list(result.scalars().all())
 
 
 async def get_or_create_source(

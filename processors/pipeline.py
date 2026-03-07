@@ -7,11 +7,13 @@
   3. LLM анализ (summary / sentiment / hashtags)
   4. Обновление записи в SQLite
   5. Добавление эмбеддинга в ChromaDB
+  6. Отправка в Telegram (через NewsSender, если задан)
 
 Подключается к scheduler.ParserScheduler как on_items callback.
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Optional
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from configs.client_config_schema import SourceConfig
 from database.crud import (
     compute_hash,
+    get_client_settings,
     get_or_create_source,
     save_news,
     update_news_analysis,
@@ -31,6 +34,9 @@ from processors.llm import LLMClient
 from processors.rag import RAGPipeline
 from processors.vector_store import VectorStore
 
+if TYPE_CHECKING:
+    from bot.sender import NewsSender
+
 
 class NewsPipeline:
     """Оркестратор обработки новостей.
@@ -39,8 +45,10 @@ class NewsPipeline:
         client_id: Числовой ID клиента (из таблицы clients).
         client_str_id: Строковый ID клиента (из конфига, для ChromaDB).
         chroma_path: Корневая директория для ChromaDB (data/chroma).
+        telegram_chat_id: Chat ID клиента для отправки новостей.
         ollama_url: URL Ollama.
         ollama_model: Название модели Ollama.
+        sender: Экземпляр NewsSender для доставки в Telegram (опционально).
     """
 
     def __init__(
@@ -48,10 +56,14 @@ class NewsPipeline:
         client_id: int,
         client_str_id: str,
         chroma_path: Path,
+        telegram_chat_id: int = 0,
         ollama_url: str = "http://localhost:11434",
         ollama_model: str = "saiga_llama3_8b",
+        sender: Optional["NewsSender"] = None,
     ) -> None:
         self._client_id = client_id
+        self._telegram_chat_id = telegram_chat_id
+        self._sender = sender
         self._vector_store = VectorStore(
             client_id=client_str_id,
             persist_directory=chroma_path,
@@ -112,6 +124,21 @@ class NewsPipeline:
             )
             return
 
+        # 3.5. Keyword-фильтрация
+        client_settings = await get_client_settings(session, self._client_id)
+        keywords = client_settings.keywords if client_settings else []
+        if keywords:
+            text_lower = (item.title + " " + item.content).lower()
+            if not any(kw.lower() in text_lower for kw in keywords):
+                news.keyword_filtered = True
+                await session.commit()
+                logger.debug(
+                    "Keyword-фильтр: новость не прошла: client={}, title={!r}",
+                    self._client_id,
+                    item.title[:60],
+                )
+                return
+
         # 4. RAG-контекст для LLM
         rag_ctx = await self._rag.build_context(item.title, item.content)
 
@@ -157,6 +184,18 @@ class NewsPipeline:
             llm_result.sentiment,
             item.title[:60],
         )
+
+        # 8. Отправка в Telegram (только instant-режим; hourly/daily — через дайджест-джоб)
+        frequency = client_settings.frequency if client_settings else "instant"
+        if self._sender and self._telegram_chat_id and frequency == "instant":
+            # Обновляем объект news локально, чтобы не делать лишний SELECT
+            news.summary = llm_result.summary
+            news.sentiment = llm_result.sentiment
+            news.hashtags = llm_result.hashtags
+            await self._sender.send_news(
+                chat_id=self._telegram_chat_id,
+                news=news,
+            )
 
     async def process(
         self,

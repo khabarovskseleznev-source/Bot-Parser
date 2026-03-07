@@ -130,6 +130,7 @@ class ParserScheduler:
                     name=f"[{client_id}] {source.name}",
                     replace_existing=True,
                     max_instances=1,  # не запускать повторно, если предыдущий ещё работает
+                    next_run_time=datetime.now(timezone.utc),  # запустить сразу при старте
                 )
                 logger.info(
                     "Задача зарегистрирована: {} (каждые {} мин)",

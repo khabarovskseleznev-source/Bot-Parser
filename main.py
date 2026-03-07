@@ -5,9 +5,22 @@
 """
 
 import asyncio
+import os
+import ssl
 
+import certifi
+
+# macOS fix: системные сертификаты не доверяют многим CA
+os.environ.setdefault("SSL_CERT_FILE", certifi.where())
+ssl._create_default_https_context = ssl.create_default_context  # noqa: SLF001
+
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 from loguru import logger
 
+from bot.bot import create_bot, create_dispatcher
+from bot.sender import NewsSender
 from config import load_client_configs, settings
 from database.crud import get_or_create_client
 from database.db import create_tables, get_session, init_db
@@ -29,13 +42,17 @@ def setup_logging() -> None:
     )
 
 
-async def build_pipelines(client_configs: dict) -> dict[str, NewsPipeline]:
+async def build_pipelines(
+    client_configs: dict,
+    sender: NewsSender,
+) -> dict[str, NewsPipeline]:
     """Инициализировать NewsPipeline для каждого клиента.
 
     Синхронизирует клиентов из конфигов с таблицей clients в БД.
 
     Args:
         client_configs: Словарь {client_str_id: ClientConfig}.
+        sender: Экземпляр NewsSender для отправки новостей.
 
     Returns:
         Словарь {client_str_id: NewsPipeline}.
@@ -59,12 +76,64 @@ async def build_pipelines(client_configs: dict) -> dict[str, NewsPipeline]:
                 client_id=client.id,
                 client_str_id=client_str_id,
                 chroma_path=chroma_path,
+                telegram_chat_id=config.telegram_chat_id,
                 ollama_url=settings.ollama_url,
                 ollama_model=settings.default_model,
+                sender=sender,
             )
             logger.info("Pipeline создан: {} (db_id={})", client_str_id, client.id)
 
     return pipelines
+
+
+def _register_digest_jobs(
+    digest_scheduler: AsyncIOScheduler,
+    client_configs: dict,
+    pipelines: dict[str, NewsPipeline],
+    sender: NewsSender,
+) -> None:
+    """Зарегистрировать джобы отправки дайджеста для клиентов с hourly/daily режимом.
+
+    Args:
+        digest_scheduler: Планировщик для дайджест-задач.
+        client_configs: Словарь {client_str_id: ClientConfig}.
+        pipelines: Словарь {client_str_id: NewsPipeline}.
+        sender: Экземпляр NewsSender.
+    """
+    for client_str_id, config in client_configs.items():
+        pipeline = pipelines.get(client_str_id)
+        if pipeline is None:
+            continue
+
+        client_id = pipeline._client_id
+        chat_id = config.telegram_chat_id
+
+        # hourly: каждый час в :15
+        digest_scheduler.add_job(
+            sender.send_digest,
+            trigger=IntervalTrigger(hours=1),
+            args=[client_id, chat_id],
+            id=f"digest_hourly__{client_str_id}",
+            name=f"[{client_str_id}] hourly digest",
+            replace_existing=True,
+            max_instances=1,
+        )
+
+        # daily: каждый день в 08:00 UTC
+        digest_scheduler.add_job(
+            sender.send_digest,
+            trigger=CronTrigger(hour=8, minute=0, timezone="UTC"),
+            args=[client_id, chat_id],
+            id=f"digest_daily__{client_str_id}",
+            name=f"[{client_str_id}] daily digest",
+            replace_existing=True,
+            max_instances=1,
+        )
+
+        logger.info(
+            "Дайджест-задачи зарегистрированы для клиента: {}",
+            client_str_id,
+        )
 
 
 async def main() -> None:
@@ -82,8 +151,13 @@ async def main() -> None:
     # Загрузка конфигов клиентов
     client_configs = load_client_configs(settings.clients_path)
 
+    # Инициализация Telegram-бота
+    bot = create_bot(settings.bot_token)
+    dp = create_dispatcher()
+    sender = NewsSender(bot)
+
     # Инициализация пайплайнов (синхронизация с БД + ChromaDB)
-    pipelines = await build_pipelines(client_configs)
+    pipelines = await build_pipelines(client_configs, sender)
     on_items = make_on_items_callback(pipelines)
 
     # Планировщик парсинга с подключённым pipeline
@@ -96,15 +170,21 @@ async def main() -> None:
     )
     await scheduler.start()
 
-    # TODO: Инициализация и запуск Telegram-бота (bot/) — Этап 3
+    # Планировщик дайджестов (hourly / daily)
+    digest_scheduler = AsyncIOScheduler(timezone="UTC")
+    _register_digest_jobs(digest_scheduler, client_configs, pipelines, sender)
+    digest_scheduler.start()
+    logger.info("Планировщик дайджестов запущен.")
 
     logger.info("Бот запущен. Клиентов: {}", len(client_configs))
 
     try:
-        # Держим event loop живым (заменить на asyncio.gather с ботом в Этапе 3)
-        await asyncio.Event().wait()
+        # Polling блокирует event loop; оба scheduler работают параллельно через APScheduler
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await scheduler.stop()
+        digest_scheduler.shutdown(wait=False)
+        await bot.session.close()
 
 
 if __name__ == "__main__":

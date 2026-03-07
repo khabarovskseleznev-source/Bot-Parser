@@ -87,6 +87,7 @@ class News(Base):
     hash: Mapped[str] = mapped_column(String(64), index=True)  # SHA-256 контента
     is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
     sent_to_user: Mapped[bool] = mapped_column(Boolean, default=False)
+    keyword_filtered: Mapped[bool] = mapped_column(Boolean, default=False)  # не прошла keyword-фильтр
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     client: Mapped["Client"] = relationship(back_populates="news")
@@ -103,6 +104,7 @@ class Settings(Base):
     keywords: Mapped[list] = mapped_column(JSON, default=list)
     exclude_keywords: Mapped[list] = mapped_column(JSON, default=list)
     frequency: Mapped[str] = mapped_column(String(50), default="instant")
+    digest_mode: Mapped[str] = mapped_column(String(50), default="compact")  # compact / full
     analysis_flags: Mapped[dict] = mapped_column(JSON, default=dict)
 
     client: Mapped["Client"] = relationship(back_populates="settings")
