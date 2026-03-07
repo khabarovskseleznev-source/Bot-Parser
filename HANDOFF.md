@@ -6,7 +6,7 @@
 
 ## Статус проекта
 
-**Фаза:** Этап 5 — интеграционный тест и доработки
+**Фаза:** Этап 5 — завершён. Готов к деплою.
 **Последнее обновление:** 2026-03-07
 
 ---
@@ -23,45 +23,29 @@
   - `database/db.py` — async подключение, сессии, создание таблиц
   - `config.py` — AppSettings (pydantic-settings) + `load_client_configs()`
   - `main.py` — точка входа, логирование, инициализация БД, запуск scheduler
-- [x] Документация в `docs/`:
-  - `stack.md`, `structure.md`, `data-model.md`, `client-config.md`
-  - `rag-pipeline.md`, `setup.md`, `backlog.md`, `roadmap.md`
-- [x] **Парсеры** (`parsers/`):
-  - `base.py` — абстрактный BaseParser + dataclass ParsedItem
-  - `rss.py` — RSS/Atom через feedparser, asyncio.to_thread, retry (tenacity)
-  - `telegram.py` — Telethon, публичные каналы, сессии per-канал
-  - `website.py` — aiohttp + BS4, CSS-селекторы из SelectorConfig, index + статьи
-  - `social.py` — заглушка
-- [x] **`scheduler.py`** — APScheduler AsyncIOScheduler:
-  - Задачи per-source, IntervalTrigger, max_instances=1
-  - `on_items` callback подключён к pipeline
-  - `reload_client()` — динамическое обновление задач без перезапуска
-- [x] Дорожная карта — `docs/roadmap.md`
-- [x] **Этап 2 — processors/ (RAG + LLM pipeline):**
-  - `database/crud.py` — CRUD (save_news, get_by_hash, mark_sent, save_feedback, get_or_create_client, get_or_create_source)
-  - `processors/embeddings.py` — sentence-transformers, asyncio.to_thread, ленивая загрузка модели
-  - `processors/deduplicator.py` — hash-check SHA-256 (SQL) + cosine similarity (ChromaDB, порог 0.92)
-  - `processors/vector_store.py` — ChromaDB PersistentClient, коллекции `client_{client_id}`, cosine space
-  - `processors/rag.py` — поиск top-k + формирование few-shot текстового контекста
-  - `processors/llm.py` — Ollama HTTP API, промпт, JSON-парсинг (summary/sentiment/hashtags), fallback
-  - `processors/pipeline.py` — оркестратор, `make_on_items_callback()` для scheduler
-  - `main.py` — обновлён: `build_pipelines()`, pipeline подключён к scheduler
-- [x] **Этап 3 — bot/ (Telegram-бот, handlers, доставка новостей):**
-  - `bot/bot.py` — `create_bot()` + `create_dispatcher()`, регистрация роутеров
-  - `bot/handlers/start.py` — `/start`: приветствие, `get_or_create_client`, создание Settings по умолчанию
-  - `bot/handlers/settings.py` — `/settings`: FSM-диалог, управление keywords, frequency, digest_mode
-  - `bot/handlers/feedback.py` — инлайн-кнопки `fb:<reaction>:<news_id>`, `save_feedback`
-  - `bot/sender.py` — `NewsSender.send_news()`, `send_digest()` (compact/full режимы)
-  - `processors/pipeline.py` — keyword-фильтр + instant/hourly/daily ветвление
-  - `main.py` — полностью обновлён: два планировщика (парсинг + дайджест)
-- [x] **Этап 4 — тестирование и деплой:**
-  - `database/models.py` — добавлены поля `News.keyword_filtered`, `Settings.digest_mode`
-  - `database/crud.py` — добавлены `get_client_settings()`, `get_unsent_news()`
-  - `migrate.py` — скрипт миграции для существующих БД
-  - `data/clients/test_client/config.json` — тестовый конфиг (RSS Lenta.ru)
-  - `tests/conftest.py`, `test_crud.py`, `test_config_schema.py`, `test_keyword_filter.py`
-  - `pytest.ini` — asyncio_mode=auto
+- [x] Документация в `docs/`
+- [x] **Парсеры** (`parsers/`): rss, telegram, website, social (заглушка)
+- [x] **`scheduler.py`** — APScheduler, задачи per-source, `next_run_time=now()` (запуск сразу)
+- [x] **Этап 2 — processors/** (RAG + LLM pipeline):
+  - embeddings, deduplicator, vector_store, rag, llm, pipeline
+- [x] **Этап 3 — bot/**:
+  - `bot/bot.py`, `bot/sender.py` (instant + digest compact/full)
+  - `bot/handlers/`: start, settings (FSM), feedback (инлайн-кнопки)
+  - pipeline: keyword-фильтр + instant/hourly/daily ветвление
+  - main.py: два планировщика (парсинг + дайджест)
+- [x] **Этап 4 — тестирование и деплой**:
+  - `database/models.py` — `News.keyword_filtered`, `Settings.digest_mode`
+  - `database/crud.py` — `get_client_settings()`, `get_unsent_news()`
+  - `migrate.py`, `pytest.ini`, 22 теста (все зелёные)
   - `Dockerfile`, `docker-compose.yml`, `.dockerignore`
+- [x] **Этап 5 — интеграционный тест**:
+  - `.env` заполнен реальным BOT_TOKEN и chat_id (5026462041)
+  - `/start` работает — клиент и Settings создаются в БД
+  - RSS парсинг Lenta.ru работает (50 новостей за цикл)
+  - Pipeline end-to-end: parse → embed → dedup → keyword filter → send ✅
+  - 22 unit-теста — все проходят
+  - SSL fix для macOS: `certifi` + `os.environ.setdefault` в `main.py`
+  - Ollama не установлена на macOS 13 (Ventura) — fallback работает корректно
 
 ---
 
@@ -76,32 +60,48 @@
 | handlers.py | Разбит на `handlers/` — отдельный файл на каждую команду |
 | Логирование | Loguru |
 | Валидация конфигов | Pydantic v2 |
-| Планировщик | APScheduler AsyncIOScheduler, задача per-source, max_instances=1 |
+| Планировщик | APScheduler AsyncIOScheduler, задача per-source, `next_run_time=now()` |
 | Доставка новостей | `NewsSender.send_news()` — instant; `send_digest()` — hourly/daily |
 | Keyword-фильтрация | Сохранять в БД + ChromaDB, не отправлять (news.keyword_filtered=True) |
 | Формат дайджеста | `Settings.digest_mode`: compact (один список) / full (по одному с паузой 2с) |
 | Feedback | Callback-данные формата `fb:<reaction>:<news_id>`, сохранение в таблицу `feedback` |
 | Docker | `docker-compose up --build`; ollama как отдельный сервис |
+| SSL macOS | `certifi` + `os.environ.setdefault("SSL_CERT_FILE", certifi.where())` в `main.py` |
+| ADMIN_IDS в .env | Формат JSON-массива: `[5026462041]` |
+
+---
+
+## Окружение
+
+- **venv:** `.venv/` (Python 3.12)
+- **Запуск:** `.venv/bin/python main.py`
+- **Тесты:** `.venv/bin/python -m pytest tests/ -v`
+- **macOS 13 Ventura** — Ollama через brew не ставится; нужен Ollama.app или деплой на Linux
+- **BOT_TOKEN и ADMIN_IDS** — уже в `.env` (не коммитить)
 
 ---
 
 ## Следующий шаг
 
-**Этап 5 — интеграционный тест:**
+**Этап 6 — деплой и Ollama:**
 
-1. Заполнить `.env` реальными токенами и запустить `python main.py`
-2. Убедиться что `/start` создаёт клиента и Settings в БД
-3. Запустить `pytest -v` — все unit-тесты должны пройти
-4. При наличии существующей БД запустить `python migrate.py` перед стартом
-5. Проверить отправку дайджеста вручную (вызвать `sender.send_digest(client_id, chat_id)`)
-6. При необходимости вынести `OLLAMA_URL` и таймаут модели в `.env`
+Вариант A — **локально**:
+1. Скачать Ollama.app: `curl -L https://ollama.com/download/Ollama-darwin.zip -o ~/Downloads/Ollama.zip && cd ~/Downloads && unzip Ollama.zip && open Ollama.app`
+2. Скачать модель: `ollama pull saiga_llama3_8b`
+3. Запустить бота и проверить саммари в сообщениях
+
+Вариант B — **деплой на VPS (Ubuntu)**:
+1. Выбрать хостинг (Timeweb Cloud, Hetzner, DigitalOcean)
+2. `docker-compose up --build` — бот + ollama в контейнерах
+3. Настроить `restart: always`, volumes, мониторинг логов
 
 ---
 
 ## Открытые вопросы
 
-- Нужен ли rate-limit guard в `_send_full_digest` (сейчас пауза 2с между сообщениями)?
+- Rate-limit guard в `_send_full_digest` (сейчас пауза 2с — достаточно ли?)
 - Стоит ли хранить историю дайджестов в отдельной таблице для аналитики?
+- Добавить источники: RBC RSS (уже в конфиге, `is_active: false`), Telegram-каналы
 
 ---
 
