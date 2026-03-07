@@ -65,7 +65,7 @@
 | Keyword-фильтрация | Сохранять в БД + ChromaDB, не отправлять (news.keyword_filtered=True) |
 | Формат дайджеста | `Settings.digest_mode`: compact (один список) / full (по одному с паузой 2с) |
 | Feedback | Callback-данные формата `fb:<reaction>:<news_id>`, сохранение в таблицу `feedback` |
-| Docker | `docker-compose up --build`; ollama как отдельный сервис |
+| Docker | `docker compose up --build -d`; без ollama (Groq API) |
 | SSL macOS | `certifi` + `os.environ.setdefault("SSL_CERT_FILE", certifi.where())` в `main.py` |
 | ADMIN_IDS в .env | Формат JSON-массива: `[5026462041]` |
 
@@ -83,17 +83,31 @@
 
 ## Следующий шаг
 
-**Этап 6 — деплой и Ollama:**
+**Этап 6 — деплой на VPS (Timeweb, Ubuntu):**
 
-Вариант A — **локально**:
-1. Скачать Ollama.app: `curl -L https://ollama.com/download/Ollama-darwin.zip -o ~/Downloads/Ollama.zip && cd ~/Downloads && unzip Ollama.zip && open Ollama.app`
-2. Скачать модель: `ollama pull saiga_llama3_8b`
-3. Запустить бота и проверить саммари в сообщениях
+LLM: **Groq API** (бесплатно, `llama-3.1-8b-instant`). Ollama убрана.
 
-Вариант B — **деплой на VPS (Ubuntu)**:
-1. Выбрать хостинг (Timeweb Cloud, Hetzner, DigitalOcean)
-2. `docker-compose up --build` — бот + ollama в контейнерах
-3. Настроить `restart: always`, volumes, мониторинг логов
+1. Получить GROQ_API_KEY: [console.groq.com](https://console.groq.com) → API Keys → Create
+2. Добавить в `.env`: `GROQ_API_KEY=gsk_...`
+3. Загрузить код на VPS:
+   ```bash
+   rsync -avz --exclude='.venv' --exclude='__pycache__' --exclude='data' \
+     "Project -10 (Bot- Reserch)/" user@VPS_IP:~/intelbot/
+   ```
+4. На VPS установить Docker:
+   ```bash
+   curl -fsSL https://get.docker.com | sh
+   sudo usermod -aG docker $USER && newgrp docker
+   ```
+5. Скопировать `.env` на VPS (отдельно, не через git):
+   ```bash
+   scp .env user@VPS_IP:~/intelbot/.env
+   ```
+6. Запустить:
+   ```bash
+   cd ~/intelbot && docker compose up --build -d
+   docker compose logs -f bot
+   ```
 
 ---
 

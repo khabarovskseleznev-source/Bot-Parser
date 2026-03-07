@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IntelBot — Анкета клиента</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f4f8;
+      color: #1a202c;
+      padding: 32px 16px;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #1a73e8;
+    }
+
+    header p {
+      margin-top: 8px;
+      color: #4a5568;
+      font-size: 15px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .card h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: #1a73e8;
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e8f0fe;
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      color: #2d3748;
+    }
+
+    label .req { color: #e53e3e; margin-left: 2px; }
+
+    input[type="text"],
+    input[type="tel"],
+    select,
+    textarea {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      font-size: 14px;
+      color: #1a202c;
+      background: #fff;
+      transition: border-color 0.2s;
+      outline: none;
+    }
+
+    input[type="text"]:focus,
+    input[type="tel"]:focus,
+    select:focus,
+    textarea:focus {
+      border-color: #1a73e8;
+      box-shadow: 0 0 0 3px rgba(26,115,232,0.1);
+    }
+
+    textarea { resize: vertical; min-height: 80px; }
+
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .checkbox-item:hover { border-color: #1a73e8; background: #f0f7ff; }
+
+    .checkbox-item input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #1a73e8;
+      flex-shrink: 0;
+    }
+
+    .checkbox-item span { font-size: 14px; }
+
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .radio-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border: 1px solid #cbd5e0;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .radio-item:hover { border-color: #1a73e8; background: #f0f7ff; }
+
+    .radio-item input[type="radio"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #1a73e8;
+      flex-shrink: 0;
+    }
+
+    .toggle-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toggle-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border: 1px solid #cbd5e0;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .toggle-item input { display: none; }
+
+    .toggle-item:has(input:checked) {
+      border-color: #1a73e8;
+      background: #e8f0fe;
+      color: #1a73e8;
+      font-weight: 500;
+    }
+
+    .hidden { display: none; }
+
+    #other-industry-field { margin-top: 12px; }
+
+    #geo-regions-field { margin-top: 12px; }
+
+    #digest-time-field { margin-top: 12px; }
+
+    .hint {
+      font-size: 12px;
+      color: #718096;
+      margin-top: 4px;
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 14px;
+      background: #1a73e8;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .submit-btn:hover { background: #1557b0; }
+    .submit-btn:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    #success-msg {
+      display: none;
+      text-align: center;
+      padding: 40px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    #success-msg h2 { color: #38a169; font-size: 22px; margin-bottom: 12px; }
+    #success-msg p { color: #4a5568; }
+
+    #error-msg {
+      display: none;
+      color: #e53e3e;
+      background: #fff5f5;
+      border: 1px solid #fed7d7;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 12px;
+      font-size: 14px;
+    }
+
+    @media (max-width: 480px) {
+      .checkbox-grid { grid-template-columns: 1fr; }
+      .card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>IntelBot</h1>
+    <p>Анкета для сбора требований. Заполните форму — мы свяжемся в течение 24 часов.</p>
+  </header>
+
+  <form id="client-form">
+
+    <!-- 1. Контакты -->
+    <div class="card">
+      <h2>1. Контактная информация</h2>
+
+      <div class="field">
+        <label>Название компании <span class="req">*</span></label>
+        <input type="text" name="company" placeholder="ООО «Ромашка»" required>
+      </div>
+
+      <div class="field">
+        <label>Имя и должность <span class="req">*</span></label>
+        <input type="text" name="contact" placeholder="Иван Иванов, директор по маркетингу" required>
+      </div>
+
+      <div class="field">
+        <label>Telegram <span class="req">*</span></label>
+        <input type="text" name="telegram" placeholder="@username" required>
+      </div>
+    </div>
+
+    <!-- 2. Сфера -->
+    <div class="card">
+      <h2>2. Сфера деятельности</h2>
+
+      <div class="field">
+        <div class="radio-group">
+          <label class="radio-item">
+            <input type="radio" name="industry" value="Строительство" required>
+            <span>Строительство и стройматериалы</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="industry" value="FMCG">
+            <span>FMCG / ритейл</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="industry" value="Тендеры / госзакупки">
+            <span>Тендеры / госзакупки</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="industry" value="Недвижимость">
+            <span>Недвижимость</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="industry" value="Финансы / банки">
+            <span>Финансы / банки</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="industry" value="Другое">
+            <span>Другое</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="field hidden" id="other-industry-field">
+        <label>Укажите вашу сферу</label>
+        <input type="text" name="industry_other" placeholder="Ваша отрасль">
+      </div>
+    </div>
+
+    <!-- 3. Источники -->
+    <div class="card">
+      <h2>3. Источники новостей</h2>
+      <p class="hint" style="margin-bottom:14px">Отметьте все нужные типы источников</p>
+
+      <div class="field">
+        <div class="checkbox-grid">
+          <label class="checkbox-item">
+            <input type="checkbox" name="src_telegram"> <span>Telegram-каналы</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="src_rss"> <span>RSS-ленты</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="src_web"> <span>Веб-сайты</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="src_social"> <span>Соцсети (VK, OK)</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="src_forums"> <span>Форумы</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" name="src_goszakupki"> <span>Госзакупки.ру</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="field" id="tg-channels-field">
+        <label>Список Telegram-каналов (если известны)</label>
+        <textarea name="tg_channels" placeholder="@channel1, @channel2, t.me/channel3"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Список RSS-лент (если известны)</label>
+        <textarea name="rss_feeds" placeholder="https://lenta.ru/rss, https://rbc.ru/rss"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Есть ли доступ к закрытым Telegram-каналам?</label>
+        <select name="private_access">
+          <option value="">— выберите —</option>
+          <option value="Нет">Нет</option>
+          <option value="Да, есть аккаунт">Да, есть аккаунт Telegram</option>
+          <option value="Нужна помощь">Нужна помощь с доступом</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 4. Фильтрация -->
+    <div class="card">
+      <h2>4. Фильтрация контента</h2>
+
+      <div class="field">
+        <label>Ключевые слова <span class="req">*</span></label>
+        <textarea name="keywords" placeholder="строительство, тендер, цемент, жилье" required></textarea>
+        <p class="hint">Через запятую. Бот будет отслеживать только эти темы.</p>
+      </div>
+
+      <div class="field">
+        <label>Конкуренты (названия компаний)</label>
+        <textarea name="competitors" placeholder="ООО «Конкурент», ПАО «Другая компания»"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Стоп-слова (что исключить)</label>
+        <textarea name="stopwords" placeholder="реклама, спонсор, партнёрский материал"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Нужна ли географическая фильтрация?</label>
+        <div class="radio-group">
+          <label class="radio-item">
+            <input type="radio" name="geo_filter" value="false"> <span>Нет, весь русскоязычный интернет</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="geo_filter" value="true"> <span>Да, только определённые регионы</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="field hidden" id="geo-regions-field">
+        <label>Регионы</label>
+        <input type="text" name="regions" placeholder="Москва, Санкт-Петербург, Краснодар">
+      </div>
+    </div>
+
+    <!-- 5. Аналитика -->
+    <div class="card">
+      <h2>5. Функции аналитики</h2>
+      <p class="hint" style="margin-bottom:14px">Выберите нужные функции</p>
+
+      <div class="field">
+        <div class="toggle-group">
+          <label class="toggle-item">
+            <input type="checkbox" name="feat_summary" checked> Саммари
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" name="feat_sentiment" checked> Тональность
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" name="feat_ner"> NER (люди, компании)
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" name="feat_hashtags" checked> Хештеги
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" name="feat_dedup" checked> Дедупликация
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. Доставка -->
+    <div class="card">
+      <h2>6. Доставка уведомлений</h2>
+
+      <div class="field">
+        <label>Куда отправлять <span class="req">*</span></label>
+        <select name="delivery_target" required>
+          <option value="">— выберите —</option>
+          <option value="Личный Telegram">Личный Telegram</option>
+          <option value="Telegram-группа">Telegram-группа / канал</option>
+          <option value="Несколько получателей">Несколько получателей</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Username или chat_id получателя</label>
+        <input type="text" name="chat_id" placeholder="@username или -100123456789">
+      </div>
+
+      <div class="field">
+        <label>Частота уведомлений <span class="req">*</span></label>
+        <div class="radio-group">
+          <label class="radio-item">
+            <input type="radio" name="frequency" value="instant" required> <span>Мгновенно (каждая новость)</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="frequency" value="hourly"> <span>Ежечасный дайджест</span>
+          </label>
+          <label class="radio-item">
+            <input type="radio" name="frequency" value="daily"> <span>Ежедневный дайджест</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="field hidden" id="digest-time-field">
+        <label>Время дайджеста</label>
+        <input type="text" name="digest_time" placeholder="09:00">
+      </div>
+    </div>
+
+    <!-- 7. Инфраструктура и бюджет -->
+    <div class="card">
+      <h2>7. Инфраструктура и бюджет</h2>
+
+      <div class="field">
+        <label>Хранение данных (сервер)</label>
+        <select name="hosting">
+          <option value="">— выберите —</option>
+          <option value="Наш сервер">На вашем сервере (мы разворачиваем)</option>
+          <option value="Сервер клиента">На сервере клиента</option>
+          <option value="Облако">Облачный хостинг (Timeweb, VK Cloud и др.)</option>
+          <option value="Не знаю">Не знаю, помогите выбрать</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Бюджет на разработку</label>
+        <select name="budget_dev">
+          <option value="">— выберите —</option>
+          <option value="до 30 000 ₽">до 30 000 ₽</option>
+          <option value="30 000 – 80 000 ₽">30 000 – 80 000 ₽</option>
+          <option value="80 000 – 150 000 ₽">80 000 – 150 000 ₽</option>
+          <option value="более 150 000 ₽">более 150 000 ₽</option>
+          <option value="Обсуждаемо">Обсуждаемо</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Бюджет на ежемесячное обслуживание</label>
+        <select name="budget_monthly">
+          <option value="">— выберите —</option>
+          <option value="до 5 000 ₽/мес">до 5 000 ₽/мес</option>
+          <option value="5 000 – 15 000 ₽/мес">5 000 – 15 000 ₽/мес</option>
+          <option value="более 15 000 ₽/мес">более 15 000 ₽/мес</option>
+          <option value="Обсуждаемо">Обсуждаемо</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 8. Примеры и доп. -->
+    <div class="card">
+      <h2>8. Примеры и пожелания</h2>
+
+      <div class="field">
+        <label>Примеры новостей, которые вам интересны</label>
+        <textarea name="news_examples" placeholder="Ссылки или описание: «новости о тендерах на строительство школ в Краснодарском крае»"></textarea>
+      </div>
+
+      <div class="field">
+        <label>Дополнительные пожелания</label>
+        <textarea name="extra" placeholder="Любые комментарии, вопросы или особые требования"></textarea>
+      </div>
+    </div>
+
+    <button type="submit" class="submit-btn" id="submit-btn">Отправить анкету</button>
+    <div id="error-msg"></div>
+
+  </form>
+
+  <div id="success-msg">
+    <h2>Анкета отправлена!</h2>
+    <p>Мы свяжемся с вами в Telegram в течение 24 часов.<br>Спасибо за интерес к IntelBot.</p>
+  </div>
+</div>
+
+<script>
+  const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycby5xUbqVznFo0g4PyqtcP2Zk-vBoJvYzAX0vM60fNrNb3ykw8IeObFpOg3smMOAf1lD/exec";
+
+  // Показать/скрыть поле "другая сфера"
+  document.querySelectorAll('input[name="industry"]').forEach(radio => {
+    radio.addEventListener("change", () => {
+      const otherField = document.getElementById("other-industry-field");
+      otherField.classList.toggle("hidden", radio.value !== "Другое");
+    });
+  });
+
+  // Показать/скрыть регионы
+  document.querySelectorAll('input[name="geo_filter"]').forEach(radio => {
+    radio.addEventListener("change", () => {
+      document.getElementById("geo-regions-field").classList.toggle("hidden", radio.value !== "true");
+    });
+  });
+
+  // Показать/скрыть время дайджеста
+  document.querySelectorAll('input[name="frequency"]').forEach(radio => {
+    radio.addEventListener("change", () => {
+      document.getElementById("digest-time-field").classList.toggle("hidden", radio.value !== "daily");
+    });
+  });
+
+  // Отправка формы
+  document.getElementById("client-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("submit-btn");
+    const errMsg = document.getElementById("error-msg");
+    btn.disabled = true;
+    btn.textContent = "Отправляем...";
+    errMsg.style.display = "none";
+
+    const fd = new FormData(e.target);
+    const data = {};
+
+    // Чекбоксы (по умолчанию false)
+    ["src_telegram","src_rss","src_web","src_social","src_forums","src_goszakupki",
+     "feat_summary","feat_sentiment","feat_ner","feat_hashtags","feat_dedup","geo_filter"].forEach(k => {
+      data[k] = false;
+    });
+
+    for (const [key, value] of fd.entries()) {
+      if (key === "geo_filter") {
+        data[key] = value === "true";
+      } else if (["src_telegram","src_rss","src_web","src_social","src_forums","src_goszakupki",
+                   "feat_summary","feat_sentiment","feat_ner","feat_hashtags","feat_dedup"].includes(key)) {
+        data[key] = true;
+      } else {
+        data[key] = value;
+      }
+    }
+
+    try {
+      // Кодируем данные как URL-параметры (единственный способ с no-cors + Apps Script)
+      const params = new URLSearchParams({ data: JSON.stringify(data) });
+      await fetch(WEBHOOK_URL + "?" + params.toString(), {
+        method: "GET",
+        mode: "no-cors",
+      });
+
+      document.getElementById("client-form").style.display = "none";
+      document.getElementById("success-msg").style.display = "block";
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      errMsg.textContent = "Ошибка отправки. Попробуйте ещё раз или напишите нам напрямую.";
+      errMsg.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Отправить анкету";
+    }
+  });
+</script>
+</body>
+</html>
