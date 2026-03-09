@@ -23,7 +23,7 @@ from bot.bot import create_bot, create_dispatcher
 from bot.sender import NewsSender
 from config import load_client_configs, settings
 from database.crud import get_or_create_client
-from database.db import create_tables, get_session, init_db
+from database.db import create_tables, get_session, init_db, run_migrations
 from processors.pipeline import NewsPipeline, make_on_items_callback
 from scheduler import ParserScheduler
 
@@ -77,8 +77,7 @@ async def build_pipelines(
                 client_str_id=client_str_id,
                 chroma_path=chroma_path,
                 telegram_chat_id=config.telegram_chat_id,
-                ollama_url=settings.ollama_url,
-                ollama_model=settings.default_model,
+                groq_api_key=settings.groq_api_key,
                 sender=sender,
             )
             logger.info("Pipeline создан: {} (db_id={})", client_str_id, client.id)
@@ -105,35 +104,47 @@ def _register_digest_jobs(
         if pipeline is None:
             continue
 
+        frequency = config.delivery.frequency
+        if frequency == "instant":
+            continue  # instant-режим не использует дайджест-джобы
+
         client_id = pipeline._client_id
         chat_id = config.telegram_chat_id
 
-        # hourly: каждый час в :15
-        digest_scheduler.add_job(
-            sender.send_digest,
-            trigger=IntervalTrigger(hours=1),
-            args=[client_id, chat_id],
-            id=f"digest_hourly__{client_str_id}",
-            name=f"[{client_str_id}] hourly digest",
-            replace_existing=True,
-            max_instances=1,
-        )
+        if frequency == "hourly":
+            digest_scheduler.add_job(
+                sender.send_digest,
+                trigger=IntervalTrigger(hours=1),
+                args=[client_id, chat_id],
+                id=f"digest_hourly__{client_str_id}",
+                name=f"[{client_str_id}] hourly digest",
+                replace_existing=True,
+                max_instances=1,
+            )
+            logger.info("Дайджест hourly зарегистрирован: {}", client_str_id)
 
-        # daily: каждый день в 08:00 UTC
-        digest_scheduler.add_job(
-            sender.send_digest,
-            trigger=CronTrigger(hour=8, minute=0, timezone="UTC"),
-            args=[client_id, chat_id],
-            id=f"digest_daily__{client_str_id}",
-            name=f"[{client_str_id}] daily digest",
-            replace_existing=True,
-            max_instances=1,
-        )
+        elif frequency == "daily":
+            # Парсим время из конфига (например "09:00"), fallback на 08:00 UTC
+            daily_time = config.delivery.daily_time or "08:00"
+            try:
+                hour, minute = map(int, daily_time.split(":"))
+            except ValueError:
+                hour, minute = 8, 0
 
-        logger.info(
-            "Дайджест-задачи зарегистрированы для клиента: {}",
-            client_str_id,
-        )
+            digest_scheduler.add_job(
+                sender.send_digest,
+                trigger=CronTrigger(hour=hour, minute=minute, timezone="UTC"),
+                args=[client_id, chat_id],
+                id=f"digest_daily__{client_str_id}",
+                name=f"[{client_str_id}] daily digest {daily_time} UTC",
+                replace_existing=True,
+                max_instances=1,
+            )
+            logger.info(
+                "Дайджест daily зарегистрирован: {} в {}:00 UTC",
+                client_str_id,
+                daily_time,
+            )
 
 
 async def main() -> None:
@@ -147,6 +158,7 @@ async def main() -> None:
     # Инициализация БД
     init_db(str(settings.db_path))
     await create_tables()
+    await run_migrations(str(settings.db_path))
 
     # Загрузка конфигов клиентов
     client_configs = load_client_configs(settings.clients_path)

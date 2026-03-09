@@ -28,9 +28,8 @@ class AppSettings(BaseSettings):
     # Пути
     data_path: Path = Path("./data")
 
-    # Ollama
-    ollama_url: str = "http://localhost:11434"
-    default_model: str = "saiga_llama3_8b"
+    # Groq
+    groq_api_key: str = ""
 
     @property
     def db_path(self) -> Path:

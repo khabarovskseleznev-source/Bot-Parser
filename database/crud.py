@@ -172,6 +172,46 @@ async def save_feedback(
     return feedback
 
 
+_REACTION_SCORE_DELTA: dict[str, int] = {
+    "like": 2,
+    "dislike": -2,
+    "saved": 3,
+}
+
+
+async def update_importance_by_feedback(
+    session: AsyncSession,
+    news_id: int,
+    reaction: str,
+) -> None:
+    """Скорректировать importance_score новости по реакции пользователя.
+
+    Дельта: like +2, saved +3, dislike -2. Значение зажато в диапазоне 1–10.
+    Если score ещё не выставлен LLM, начинаем с нейтральной точки 5.
+
+    Args:
+        session: Сессия SQLAlchemy.
+        news_id: ID новости.
+        reaction: Реакция ('like', 'dislike', 'saved').
+    """
+    delta = _REACTION_SCORE_DELTA.get(reaction)
+    if delta is None:
+        return
+
+    news = await session.get(News, news_id)
+    if news is None:
+        logger.warning("update_importance_by_feedback: новость id={} не найдена", news_id)
+        return
+
+    current = news.importance_score if news.importance_score is not None else 5
+    news.importance_score = max(1, min(10, current + delta))
+    await session.commit()
+    logger.debug(
+        "importance_score новости id={}: {} → {}",
+        news_id, current, news.importance_score,
+    )
+
+
 async def get_source_by_url(
     session: AsyncSession,
     client_id: int,

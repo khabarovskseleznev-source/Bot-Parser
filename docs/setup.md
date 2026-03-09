@@ -29,27 +29,26 @@ ADMIN_IDS=id1,id2
 TELEGRAM_API_ID=...         # для Telethon
 TELEGRAM_API_HASH=...       # для Telethon
 DATA_PATH=./data
-OLLAMA_URL=http://localhost:11434
-DEFAULT_MODEL=saiga_llama3_8b
+GROQ_API_KEY=gsk_...   # console.groq.com → API Keys
 ```
 
-## Ollama
+## LLM (Groq)
+
+Бесплатный API: [console.groq.com](https://console.groq.com) → API Keys → Create.
+Модель: `llama-3.1-8b-instant`. Лимит: 6000 req/day.
+
+## Docker (VPS)
 
 ```bash
-ollama pull saiga_llama3_8b
-```
-
-## Docker
-
-```bash
-docker-compose up --build
+docker compose up --build -d
+docker compose logs -f bot
 ```
 
 Папка `data/` монтируется в контейнер — данные клиентов сохраняются между перезапусками.
 
 ## Сервер
 
-Ubuntu 22.04, Docker, NVIDIA Container Toolkit (если нужен GPU для LLM).
+Ubuntu 22.04, Docker. Минимум: 1 vCPU, 1 GB RAM (без Ollama).
 Запуск через `docker-compose` или systemd.
 
 ---

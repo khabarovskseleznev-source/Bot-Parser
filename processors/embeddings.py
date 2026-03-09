@@ -1,7 +1,7 @@
 """
 Генерация текстовых эмбеддингов.
 
-Использует модель paraphrase-multilingual-MiniLM-L12-v2 (sentence-transformers).
+Использует модель all-MiniLM-L6-v2 (sentence-transformers) — ~90 МБ RAM.
 Вычисления выполняются в asyncio.to_thread, чтобы не блокировать event loop.
 """
 
@@ -12,7 +12,7 @@ from loguru import logger
 from sentence_transformers import SentenceTransformer
 
 _model: Optional[SentenceTransformer] = None
-_MODEL_NAME = "paraphrase-multilingual-MiniLM-L12-v2"
+_MODEL_NAME = "all-MiniLM-L6-v2"
 
 
 def _get_model() -> SentenceTransformer:

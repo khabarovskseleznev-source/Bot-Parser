@@ -11,7 +11,7 @@ from aiogram.types import CallbackQuery
 from loguru import logger
 from sqlalchemy import select
 
-from database.crud import save_feedback
+from database.crud import save_feedback, update_importance_by_feedback
 from database.db import get_session
 from database.models import Client
 
@@ -61,6 +61,11 @@ async def cb_feedback(callback: CallbackQuery) -> None:
         await save_feedback(
             session=session,
             client_id=client.id,
+            news_id=news_id,
+            reaction=reaction,
+        )
+        await update_importance_by_feedback(
+            session=session,
             news_id=news_id,
             reaction=reaction,
         )
