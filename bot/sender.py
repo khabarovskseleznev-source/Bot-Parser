@@ -141,6 +141,13 @@ class NewsSender:
             settings = await get_client_settings(session, client_id)
             digest_mode = settings.digest_mode if settings else "compact"
 
+        # Сортируем по importance_score (по убыванию), берём топ-20
+        news_list = sorted(
+            news_list,
+            key=lambda n: n.importance_score or 0,
+            reverse=True,
+        )[:20]
+
         logger.info(
             "Дайджест: {} новостей для client_id={}, режим={}",
             len(news_list), client_id, digest_mode,

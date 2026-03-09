@@ -46,8 +46,7 @@ class NewsPipeline:
         client_str_id: Строковый ID клиента (из конфига, для ChromaDB).
         chroma_path: Корневая директория для ChromaDB (data/chroma).
         telegram_chat_id: Chat ID клиента для отправки новостей.
-        ollama_url: URL Ollama.
-        ollama_model: Название модели Ollama.
+        groq_api_key: API ключ Groq.
         sender: Экземпляр NewsSender для доставки в Telegram (опционально).
     """
 
@@ -57,8 +56,7 @@ class NewsPipeline:
         client_str_id: str,
         chroma_path: Path,
         telegram_chat_id: int = 0,
-        ollama_url: str = "http://localhost:11434",
-        ollama_model: str = "saiga_llama3_8b",
+        groq_api_key: str = "",
         sender: Optional["NewsSender"] = None,
     ) -> None:
         self._client_id = client_id
@@ -70,7 +68,7 @@ class NewsPipeline:
         )
         self._deduplicator = Deduplicator(self._vector_store)
         self._rag = RAGPipeline(self._vector_store)
-        self._llm = LLMClient(base_url=ollama_url, model=ollama_model)
+        self._llm = LLMClient(api_key=groq_api_key)
 
     async def _process_item(
         self,
@@ -156,6 +154,7 @@ class NewsPipeline:
             summary=llm_result.summary,
             sentiment=llm_result.sentiment,
             hashtags=llm_result.hashtags,
+            importance_score=llm_result.importance_score,
         )
 
         # 7. Добавить эмбеддинг в ChromaDB
@@ -192,6 +191,7 @@ class NewsPipeline:
             news.summary = llm_result.summary
             news.sentiment = llm_result.sentiment
             news.hashtags = llm_result.hashtags
+            news.importance_score = llm_result.importance_score
             await self._sender.send_news(
                 chat_id=self._telegram_chat_id,
                 news=news,

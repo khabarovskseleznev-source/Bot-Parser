@@ -1,23 +1,23 @@
 """
-Вызов LLM через Ollama HTTP API.
+Вызов LLM через Groq API (OpenAI-совместимый).
 
-Формирует промпт с few-shot контекстом от RAG, отправляет на Ollama,
+Формирует промпт с few-shot контекстом от RAG, отправляет на Groq,
 парсит структурированный ответ (summary / sentiment / hashtags).
 
 Fallback: если ответ не удалось распарсить — возвращает пустые поля.
 """
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
-from typing import Optional
 
 import aiohttp
 from loguru import logger
 
-DEFAULT_OLLAMA_URL = "http://localhost:11434"
-DEFAULT_MODEL = "saiga_llama3_8b"
-REQUEST_TIMEOUT = 120  # секунд
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+DEFAULT_MODEL = "llama-3.1-8b-instant"
+REQUEST_TIMEOUT = 30  # секунд
 
 _SENTIMENT_VALUES = {"positive", "neutral", "negative"}
 
@@ -29,6 +29,7 @@ class LLMResult:
     summary: str = ""
     sentiment: str = "neutral"
     hashtags: list[str] = field(default_factory=list)
+    importance_score: int = 5
     raw: str = ""  # сырой ответ для отладки
 
 
@@ -54,7 +55,12 @@ def _build_prompt(title: str, content: str, rag_context: str) -> str:
         f"Проанализируй новость и ответь строго в формате JSON без пояснений:\n"
         f'{{"summary": "<краткое изложение 2-3 предложения>", '
         f'"sentiment": "<positive|neutral|negative>", '
-        f'"hashtags": ["<тег1>", "<тег2>", "<тег3>"]}}\n\n'
+        f'"hashtags": ["<тег1>", "<тег2>", "<тег3>"], '
+        f'"importance": <целое число 1-10>}}\n\n'
+        f"Критерии importance:\n"
+        f"9-10: прорыв, крупный релиз модели, громкое событие отрасли\n"
+        f"6-8: новый продукт, важное исследование, значимое партнёрство\n"
+        f"1-5: обзор, мнение, общая статья, незначительное обновление\n\n"
         f"Заголовок: {title}\n"
         f"Текст: {content[:2000]}"
     )
@@ -74,7 +80,6 @@ def _parse_response(raw: str) -> LLMResult:
     """
     result = LLMResult(raw=raw)
 
-    # Пытаемся найти JSON-блок в ответе
     json_str = raw.strip()
     match = re.search(r"\{.*\}", json_str, re.DOTALL)
     if match:
@@ -97,25 +102,31 @@ def _parse_response(raw: str) -> LLMResult:
             str(h).strip().lstrip("#") for h in hashtags if isinstance(h, str)
         ][:10]
 
+    try:
+        importance = int(data.get("importance", 5))
+        result.importance_score = max(1, min(10, importance))
+    except (TypeError, ValueError):
+        result.importance_score = 5
+
     return result
 
 
 class LLMClient:
-    """Клиент для работы с Ollama.
+    """Клиент для работы с Groq API.
 
     Args:
-        base_url: URL сервера Ollama (по умолчанию localhost:11434).
+        api_key: Groq API key (по умолчанию из GROQ_API_KEY env).
         model: Название модели.
         timeout: Таймаут запроса в секундах.
     """
 
     def __init__(
         self,
-        base_url: str = DEFAULT_OLLAMA_URL,
+        api_key: str | None = None,
         model: str = DEFAULT_MODEL,
         timeout: int = REQUEST_TIMEOUT,
     ) -> None:
-        self._base_url = base_url.rstrip("/")
+        self._api_key = api_key or os.environ.get("GROQ_API_KEY", "")
         self._model = model
         self._timeout = aiohttp.ClientTimeout(total=timeout)
 
@@ -136,25 +147,33 @@ class LLMClient:
             LLMResult с summary, sentiment, hashtags.
             При ошибке — LLMResult с пустыми полями (fallback).
         """
+        if not self._api_key:
+            logger.warning("LLM: GROQ_API_KEY не задан, пропускаем анализ")
+            return LLMResult()
+
         prompt = _build_prompt(title, content, rag_context)
         payload = {
             "model": self._model,
-            "prompt": prompt,
-            "stream": False,
-            "format": "json",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.3,
+        }
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
         }
 
         try:
             async with aiohttp.ClientSession(timeout=self._timeout) as session:
                 async with session.post(
-                    f"{self._base_url}/api/generate",
+                    GROQ_API_URL,
                     json=payload,
+                    headers=headers,
                 ) as resp:
                     resp.raise_for_status()
                     data = await resp.json()
-                    raw = data.get("response", "")
+                    raw = data["choices"][0]["message"]["content"]
         except aiohttp.ClientError as exc:
-            logger.error("LLM: ошибка подключения к Ollama: {}", exc)
+            logger.error("LLM: ошибка подключения к Groq: {}", exc)
             return LLMResult()
         except Exception:
             logger.exception("LLM: непредвиденная ошибка")
@@ -162,8 +181,9 @@ class LLMClient:
 
         result = _parse_response(raw)
         logger.debug(
-            "LLM: sentiment={}, hashtags={}, summary_len={}",
+            "LLM: sentiment={}, importance={}, hashtags={}, summary_len={}",
             result.sentiment,
+            result.importance_score,
             result.hashtags,
             len(result.summary),
         )

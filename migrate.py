@@ -26,6 +26,10 @@ async def migrate() -> None:
             migrations.append(
                 "ALTER TABLE news ADD COLUMN keyword_filtered BOOLEAN NOT NULL DEFAULT 0"
             )
+        if "importance_score" not in news_cols:
+            migrations.append(
+                "ALTER TABLE news ADD COLUMN importance_score INTEGER"
+            )
         if "digest_mode" not in settings_cols:
             migrations.append(
                 "ALTER TABLE settings ADD COLUMN digest_mode VARCHAR(50) NOT NULL DEFAULT 'compact'"

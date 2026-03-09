@@ -98,6 +98,7 @@ async def update_news_analysis(
     sentiment: Optional[str] = None,
     hashtags: Optional[list[str]] = None,
     entities: Optional[dict] = None,
+    importance_score: Optional[int] = None,
 ) -> None:
     """Записать результаты LLM-анализа в существующую новость.
 
@@ -108,6 +109,7 @@ async def update_news_analysis(
         sentiment: Тональность (positive / neutral / negative).
         hashtags: Список хештегов.
         entities: Извлечённые сущности.
+        importance_score: Оценка важности 1-10.
     """
     news = await session.get(News, news_id)
     if news is None:
@@ -122,6 +124,8 @@ async def update_news_analysis(
         news.hashtags = hashtags
     if entities is not None:
         news.entities = entities
+    if importance_score is not None:
+        news.importance_score = importance_score
 
     await session.commit()
     logger.debug("Анализ записан для новости id={}", news_id)

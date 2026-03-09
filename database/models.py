@@ -83,6 +83,7 @@ class News(Base):
     sentiment: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # positive / neutral / negative
     entities: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     hashtags: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    importance_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)  # 1-10
     # Служебные поля
     hash: Mapped[str] = mapped_column(String(64), index=True)  # SHA-256 контента
     is_duplicate: Mapped[bool] = mapped_column(Boolean, default=False)
