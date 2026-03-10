@@ -16,7 +16,7 @@ import aiohttp
 from loguru import logger
 
 OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
-DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
+DEFAULT_MODEL = "meta-llama/llama-3.3-70b-instruct:free"
 REQUEST_TIMEOUT = 30  # секунд
 
 _SENTIMENT_VALUES = {"positive", "neutral", "negative"}
