@@ -79,6 +79,7 @@ class News(Base):
     content: Mapped[str] = mapped_column(Text)
     published_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     # Результаты анализа
+    title_ru: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)  # перевод заголовка
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     sentiment: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)  # positive / neutral / negative
     entities: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)

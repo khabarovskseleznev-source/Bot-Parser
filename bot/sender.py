@@ -46,7 +46,8 @@ def _format_message(news: News) -> str:
         "negative": "Негативно",
     }.get(sentiment_label, sentiment_label)
 
-    title_part = f'<b><a href="{news.url}">{news.title}</a></b>'
+    display_title = news.title_ru if news.title_ru else news.title
+    title_part = f'<b><a href="{news.url}">{display_title}</a></b>'
 
     summary_part = ""
     if news.summary:
@@ -163,7 +164,8 @@ class NewsSender:
         lines = [f"<b>Дайджест новостей ({len(news_list)})</b>\n"]
         for i, news in enumerate(news_list, 1):
             sentiment_emoji = _SENTIMENT_EMOJI.get(news.sentiment or "neutral", "🔵")
-            lines.append(f'{i}. {sentiment_emoji} <a href="{news.url}">{news.title}</a>')
+            display_title = news.title_ru if news.title_ru else news.title
+            lines.append(f'{i}. {sentiment_emoji} <a href="{news.url}">{display_title}</a>')
 
         text = "\n".join(lines)
         # Telegram ограничивает сообщение до 4096 символов
