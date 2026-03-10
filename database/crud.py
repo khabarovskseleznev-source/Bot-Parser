@@ -212,6 +212,142 @@ async def update_importance_by_feedback(
     )
 
 
+async def get_feedback_stats(
+    session: AsyncSession,
+    client_id: int,
+    days: int = 7,
+) -> dict:
+    """Собрать статистику реакций за последние N дней.
+
+    Args:
+        session: Сессия SQLAlchemy.
+        client_id: ID клиента.
+        days: Количество дней для выборки.
+
+    Returns:
+        Словарь: top_hashtags, sentiment_counts, total_liked, total_disliked, total_saved.
+    """
+    from collections import Counter
+    from datetime import timedelta
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+
+    result = await session.execute(
+        select(Feedback).where(
+            Feedback.client_id == client_id,
+            Feedback.created_at >= cutoff,
+        )
+    )
+    feedbacks = list(result.scalars().all())
+
+    total_liked = sum(1 for f in feedbacks if f.reaction == "like")
+    total_disliked = sum(1 for f in feedbacks if f.reaction == "dislike")
+    total_saved = sum(1 for f in feedbacks if f.reaction == "saved")
+
+    liked_news_ids = [f.news_id for f in feedbacks if f.reaction in ("like", "saved")]
+
+    hashtag_counter: Counter = Counter()
+    sentiment_counts: dict[str, int] = {}
+
+    if liked_news_ids:
+        news_result = await session.execute(
+            select(News).where(News.id.in_(liked_news_ids))
+        )
+        for news in news_result.scalars().all():
+            if news.hashtags:
+                for tag in news.hashtags:
+                    hashtag_counter[tag] += 1
+            if news.sentiment:
+                sentiment_counts[news.sentiment] = sentiment_counts.get(news.sentiment, 0) + 1
+
+    return {
+        "top_hashtags": hashtag_counter.most_common(3),
+        "sentiment_counts": sentiment_counts,
+        "total_liked": total_liked,
+        "total_disliked": total_disliked,
+        "total_saved": total_saved,
+    }
+
+
+async def get_liked_news_ids(
+    session: AsyncSession,
+    client_id: int,
+    limit: int = 200,
+) -> set[int]:
+    """Вернуть множество news_id, которые клиент лайкнул или сохранил.
+
+    Args:
+        session: Сессия SQLAlchemy.
+        client_id: ID клиента.
+        limit: Максимальное число записей (последние по времени).
+
+    Returns:
+        Множество news_id.
+    """
+    result = await session.execute(
+        select(Feedback.news_id)
+        .where(
+            Feedback.client_id == client_id,
+            Feedback.reaction.in_(["like", "saved"]),
+        )
+        .order_by(Feedback.created_at.desc())
+        .limit(limit)
+    )
+    return {row[0] for row in result.all()}
+
+
+async def get_low_priority_source_ids(
+    session: AsyncSession,
+    client_id: int,
+    min_feedbacks: int = 5,
+    dislike_threshold: float = 0.7,
+) -> set[int]:
+    """Вернуть source_id источников с преобладающими дизлайками.
+
+    Источник считается низкоприоритетным, если:
+    - получил не менее min_feedbacks реакций
+    - доля дизлайков >= dislike_threshold
+
+    Args:
+        session: Сессия SQLAlchemy.
+        client_id: ID клиента.
+        min_feedbacks: Минимальное количество реакций для учёта.
+        dislike_threshold: Порог доли дизлайков (0.0 - 1.0).
+
+    Returns:
+        Множество source_id низкоприоритетных источников.
+    """
+    from collections import defaultdict
+
+    # Получаем все реакции + source_id через join
+    result = await session.execute(
+        select(Feedback.reaction, News.source_id)
+        .join(News, Feedback.news_id == News.id)
+        .where(Feedback.client_id == client_id)
+    )
+    rows = result.all()
+
+    # Считаем реакции по источникам
+    counts: dict[int, dict[str, int]] = defaultdict(lambda: {"like": 0, "dislike": 0, "saved": 0})
+    for reaction, source_id in rows:
+        if reaction in counts[source_id]:
+            counts[source_id][reaction] += 1
+
+    low_priority: set[int] = set()
+    for source_id, c in counts.items():
+        total = c["like"] + c["dislike"] + c["saved"]
+        if total >= min_feedbacks and total > 0:
+            dislike_ratio = c["dislike"] / total
+            if dislike_ratio >= dislike_threshold:
+                low_priority.add(source_id)
+                logger.info(
+                    "Источник source_id={} помечен низкоприоритетным: дизлайков {:.0%} ({}/{})",
+                    source_id, dislike_ratio, c["dislike"], total,
+                )
+
+    return low_priority
+
+
 async def get_source_by_url(
     session: AsyncSession,
     client_id: int,

@@ -38,12 +38,21 @@ class RAGPipeline:
         self._vector_store = vector_store
         self._top_k = top_k
 
-    async def build_context(self, title: str, content: str) -> RAGContext:
+    async def build_context(
+        self,
+        title: str,
+        content: str,
+        liked_news_ids: set[int] | None = None,
+    ) -> RAGContext:
         """Найти похожие новости и сформировать few-shot контекст.
+
+        Лайкнутые новости получают приоритет: запрашиваем top_k*3 результатов,
+        сортируем так, чтобы лайкнутые шли первыми, берём top_k.
 
         Args:
             title: Заголовок текущей новости.
             content: Текст текущей новости.
+            liked_news_ids: Множество news_id, которые пользователь лайкнул/сохранил.
 
         Returns:
             RAGContext с примерами и готовым текстом.
@@ -51,8 +60,28 @@ class RAGPipeline:
         query_text = title + " " + content
         embedding = await get_embedding(query_text)
 
-        results = await self._vector_store.query(embedding, n_results=self._top_k)
-        logger.debug("RAG: найдено {} похожих документов", len(results))
+        fetch_k = self._top_k * 3 if liked_news_ids else self._top_k
+        results = await self._vector_store.query(embedding, n_results=fetch_k)
+        logger.debug("RAG: найдено {} похожих документов (fetch_k={})", len(results), fetch_k)
+
+        if liked_news_ids:
+            # Лайкнутые — в начало, остальные по дистанции
+            def _sort_key(hit: dict) -> tuple[int, float]:
+                try:
+                    nid = int(hit.get("metadata", {}).get("news_id", -1))
+                except (TypeError, ValueError):
+                    nid = -1
+                is_liked = 0 if nid in liked_news_ids else 1
+                return (is_liked, hit.get("distance", 1.0))
+
+            results = sorted(results, key=_sort_key)[: self._top_k]
+            liked_count = sum(
+                1 for h in results
+                if str(h.get("metadata", {}).get("news_id", "")) in
+                {str(i) for i in liked_news_ids}
+            )
+            if liked_count:
+                logger.debug("RAG: поднято {} лайкнутых новостей в контекст", liked_count)
 
         examples = []
         lines = []

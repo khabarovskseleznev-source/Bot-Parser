@@ -22,6 +22,8 @@ from configs.client_config_schema import SourceConfig
 from database.crud import (
     compute_hash,
     get_client_settings,
+    get_liked_news_ids,
+    get_low_priority_source_ids,
     get_or_create_source,
     save_news,
     update_news_analysis,
@@ -137,8 +139,20 @@ class NewsPipeline:
                 )
                 return
 
-        # 4. RAG-контекст для LLM
-        rag_ctx = await self._rag.build_context(item.title, item.content)
+        # 3.6. Фильтр низкоприоритетных источников (преобладающие дизлайки)
+        low_priority_ids = await get_low_priority_source_ids(session, self._client_id)
+        if source.id in low_priority_ids:
+            news.keyword_filtered = True
+            await session.commit()
+            logger.debug(
+                "Source-фильтр: источник source_id={} низкоприоритетный, новость пропущена: client={}, title={!r}",
+                source.id, self._client_id, item.title[:60],
+            )
+            return
+
+        # 4. RAG-контекст для LLM (с бустом лайкнутых новостей)
+        liked_ids = await get_liked_news_ids(session, self._client_id)
+        rag_ctx = await self._rag.build_context(item.title, item.content, liked_news_ids=liked_ids)
 
         # 5. Анализ через LLM
         llm_result = await self._llm.analyze(

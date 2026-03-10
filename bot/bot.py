@@ -9,7 +9,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from loguru import logger
 
-from bot.handlers import feedback, settings, start
+from bot.handlers import feedback, settings, start, stats
 
 
 def create_bot(token: str) -> Bot:
@@ -38,6 +38,7 @@ def create_dispatcher() -> Dispatcher:
     dp.include_router(start.router)
     dp.include_router(settings.router)
     dp.include_router(feedback.router)
+    dp.include_router(stats.router)
 
-    logger.info("Роутеры зарегистрированы: start, settings, feedback")
+    logger.info("Роутеры зарегистрированы: start, settings, feedback, stats")
     return dp
