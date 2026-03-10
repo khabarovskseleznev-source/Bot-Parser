@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 import aiohttp
 from loguru import logger
 
-GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
-DEFAULT_MODEL = "llama-3.1-8b-instant"
+OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
+DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
 REQUEST_TIMEOUT = 30  # секунд
 
 _SENTIMENT_VALUES = {"positive", "neutral", "negative"}
@@ -30,6 +30,7 @@ class LLMResult:
     sentiment: str = "neutral"
     hashtags: list[str] = field(default_factory=list)
     importance_score: int = 5
+    title_ru: str = ""  # перевод заголовка на русский
     raw: str = ""  # сырой ответ для отладки
 
 
@@ -52,8 +53,10 @@ def _build_prompt(title: str, content: str, rag_context: str) -> str:
 
     return (
         f"{context_block}"
-        f"Проанализируй новость и ответь строго в формате JSON без пояснений:\n"
-        f'{{"summary": "<краткое изложение 2-3 предложения>", '
+        f"Проанализируй новость и ответь строго в формате JSON без пояснений.\n"
+        f"Все текстовые поля — на русском языке.\n\n"
+        f'{{"title_ru": "<перевод заголовка на русский, если уже на русском — оставить>", '
+        f'"summary": "<краткое изложение 2-3 предложения на русском>", '
         f'"sentiment": "<positive|neutral|negative>", '
         f'"hashtags": ["<тег1>", "<тег2>", "<тег3>"], '
         f'"importance": <целое число 1-10>}}\n\n'
@@ -91,6 +94,7 @@ def _parse_response(raw: str) -> LLMResult:
         logger.warning("LLM: не удалось разобрать JSON-ответ: {!r}", raw[:200])
         return result
 
+    result.title_ru = str(data.get("title_ru", "")).strip()
     result.summary = str(data.get("summary", "")).strip()
 
     sentiment = str(data.get("sentiment", "neutral")).lower().strip()
@@ -126,7 +130,7 @@ class LLMClient:
         model: str = DEFAULT_MODEL,
         timeout: int = REQUEST_TIMEOUT,
     ) -> None:
-        self._api_key = api_key or os.environ.get("GROQ_API_KEY", "")
+        self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
         self._model = model
         self._timeout = aiohttp.ClientTimeout(total=timeout)
 
@@ -148,7 +152,7 @@ class LLMClient:
             При ошибке — LLMResult с пустыми полями (fallback).
         """
         if not self._api_key:
-            logger.warning("LLM: GROQ_API_KEY не задан, пропускаем анализ")
+            logger.warning("LLM: OPENROUTER_API_KEY не задан, пропускаем анализ")
             return LLMResult()
 
         prompt = _build_prompt(title, content, rag_context)
@@ -165,7 +169,7 @@ class LLMClient:
         try:
             async with aiohttp.ClientSession(timeout=self._timeout) as session:
                 async with session.post(
-                    GROQ_API_URL,
+                    OPENROUTER_API_URL,
                     json=payload,
                     headers=headers,
                 ) as resp:
