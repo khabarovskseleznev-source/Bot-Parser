@@ -79,6 +79,7 @@ async def build_pipelines(
                 telegram_chat_id=config.telegram_chat_id,
                 groq_api_key=settings.groq_api_key,
                 sender=sender,
+                min_content_length=config.filters.min_content_length,
             )
             logger.info("Pipeline создан: {} (db_id={})", client_str_id, client.id)
 

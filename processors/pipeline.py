@@ -60,10 +60,12 @@ class NewsPipeline:
         telegram_chat_id: int = 0,
         groq_api_key: str = "",
         sender: Optional["NewsSender"] = None,
+        min_content_length: int = 0,
     ) -> None:
         self._client_id = client_id
         self._telegram_chat_id = telegram_chat_id
         self._sender = sender
+        self._min_content_length = min_content_length
         self._vector_store = VectorStore(
             client_id=client_str_id,
             persist_directory=chroma_path,
@@ -124,6 +126,16 @@ class NewsPipeline:
             )
             return
 
+        # 3.4. Фильтр по минимальной длине контента
+        if self._min_content_length > 0 and len(item.content) < self._min_content_length:
+            news.keyword_filtered = True
+            await session.commit()
+            logger.debug(
+                "Фильтр длины: контент {}симв < {}симв, пропущено: client={}, title={!r}",
+                len(item.content), self._min_content_length, self._client_id, item.title[:60],
+            )
+            return
+
         # 3.5. Keyword-фильтрация
         client_settings = await get_client_settings(session, self._client_id)
         keywords = client_settings.keywords if client_settings else []
@@ -165,6 +177,7 @@ class NewsPipeline:
         await update_news_analysis(
             session=session,
             news_id=news.id,
+            title_ru=llm_result.title_ru or None,
             summary=llm_result.summary,
             sentiment=llm_result.sentiment,
             hashtags=llm_result.hashtags,
@@ -202,6 +215,7 @@ class NewsPipeline:
         frequency = client_settings.frequency if client_settings else "instant"
         if self._sender and self._telegram_chat_id and frequency == "instant":
             # Обновляем объект news локально, чтобы не делать лишний SELECT
+            news.title_ru = llm_result.title_ru or None
             news.summary = llm_result.summary
             news.sentiment = llm_result.sentiment
             news.hashtags = llm_result.hashtags

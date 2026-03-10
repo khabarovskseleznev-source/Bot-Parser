@@ -48,6 +48,12 @@ class DeliveryConfig(BaseModel):
     only_keywords: bool = True  # отправлять только если есть совпадение с keywords
 
 
+class FiltersConfig(BaseModel):
+    """Дополнительные фильтры для новостей."""
+
+    min_content_length: int = 0  # минимальная длина контента в символах (0 = отключено)
+
+
 class ClientConfig(BaseModel):
     """Полная конфигурация клиента."""
 
@@ -60,3 +66,4 @@ class ClientConfig(BaseModel):
     competitors: list[str] = Field(default_factory=list)
     analysis: AnalysisConfig = Field(default_factory=AnalysisConfig)
     delivery: DeliveryConfig = Field(default_factory=DeliveryConfig)
+    filters: FiltersConfig = Field(default_factory=FiltersConfig)
