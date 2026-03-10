@@ -5,7 +5,7 @@ CRUD-операции с базой данных.
 """
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from loguru import logger
@@ -45,7 +45,7 @@ async def get_news_by_hash(
     result = await session.execute(
         select(News).where(News.client_id == client_id, News.hash == content_hash)
     )
-    return result.scalar_one_or_none()
+    return result.scalars().first()
 
 
 async def save_news(
@@ -99,6 +99,7 @@ async def update_news_analysis(
     hashtags: Optional[list[str]] = None,
     entities: Optional[dict] = None,
     importance_score: Optional[int] = None,
+    title_ru: Optional[str] = None,
 ) -> None:
     """Записать результаты LLM-анализа в существующую новость.
 
@@ -110,12 +111,15 @@ async def update_news_analysis(
         hashtags: Список хештегов.
         entities: Извлечённые сущности.
         importance_score: Оценка важности 1-10.
+        title_ru: Перевод заголовка на русский.
     """
     news = await session.get(News, news_id)
     if news is None:
         logger.warning("update_news_analysis: новость id={} не найдена", news_id)
         return
 
+    if title_ru is not None:
+        news.title_ru = title_ru
     if summary is not None:
         news.summary = summary
     if sentiment is not None:
@@ -230,7 +234,7 @@ async def get_feedback_stats(
     from collections import Counter
     from datetime import timedelta
 
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
     result = await session.execute(
         select(Feedback).where(
