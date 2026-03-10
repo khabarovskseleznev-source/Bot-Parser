@@ -164,6 +164,8 @@ class LLMClient:
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/khabarovskseleznev-source/Bot-Parser",
+            "X-Title": "IntelBot",
         }
 
         try:
