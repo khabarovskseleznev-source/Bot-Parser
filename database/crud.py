@@ -419,11 +419,28 @@ async def get_or_create_client(
         select(Client).where(Client.client_str_id == client_str_id)
     )
     client = result.scalar_one_or_none()
+
+    # Fallback: поиск по chat_id для обратной совместимости
+    # (записи до миграции client_str_id могут иметь NULL в этом поле)
+    if client is None:
+        result = await session.execute(
+            select(Client).where(
+                Client.telegram_chat_id == telegram_chat_id,
+                Client.client_str_id.is_(None),
+            )
+        )
+        client = result.scalar_one_or_none()
+        if client is not None:
+            client.client_str_id = client_str_id
+            logger.info("Миграция client_str_id={} для client.id={}", client_str_id, client.id)
+
     if client is not None:
         # Обновляем chat_id на случай его изменения в конфиге
         if client.telegram_chat_id != telegram_chat_id:
             client.telegram_chat_id = telegram_chat_id
-            await session.commit()
+        if client.config_path != config_path and config_path:
+            client.config_path = config_path
+        await session.commit()
         return client
 
     client = Client(

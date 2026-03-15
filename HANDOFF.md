@@ -6,8 +6,8 @@
 
 ## Статус проекта
 
-**Фаза:** Этап 7 завершён (feedback-обучение). Деплой выполнен на VPS.
-**Последнее обновление:** 2026-03-10
+**Фаза:** Этап 7 завершён + ревизия кода. Деплой выполнен на VPS.
+**Последнее обновление:** 2026-03-15
 
 ---
 
@@ -73,6 +73,18 @@
 - **Ключевые слова:** Telegram, Durov, блокировка, Роскомнадзор, ограничения, мессенджер, регулирование
 - **Доставка:** дважды в день (09:00 и 18:00 UTC)
 - **Таблица источников:** обновлена в Google Sheets (лист "Источники") — 13 новых источников (ID 3-15)
+
+- [x] **Ревизия кода (2026-03-15):**
+  - groq_api_key → openrouter_api_key (config, pipeline, main)
+  - XSS-защита: html.escape в sender для title/url/summary
+  - Pipeline: batch-предзагрузка keywords/liked/low_priority (вместо per-item запросов)
+  - Embedding: переиспользование из дедупликатора (убрано двойное вычисление)
+  - LLMClient: переиспользование aiohttp.ClientSession
+  - DRY: get_client_by_chat_id() в crud.py, убраны дубли в handlers
+  - sender.send_digest: ORM → dict до закрытия сессии (fix detached objects)
+  - parsers/rss: reraise=True в retry
+  - Удалён дублирующий migrate.py
+  - loguru: f-string → placeholder-формат
 
 ---
 

@@ -43,6 +43,8 @@ async def run_migrations(db_path: str) -> None:
     import aiosqlite
 
     async with aiosqlite.connect(db_path) as db:
+        async with db.execute("PRAGMA table_info(clients)") as cursor:
+            clients_cols = {row[1] async for row in cursor}
         async with db.execute("PRAGMA table_info(news)") as cursor:
             news_cols = {row[1] async for row in cursor}
         async with db.execute("PRAGMA table_info(settings)") as cursor:
@@ -50,6 +52,10 @@ async def run_migrations(db_path: str) -> None:
 
         migrations: list[str] = []
 
+        if "client_str_id" not in clients_cols:
+            migrations.append(
+                "ALTER TABLE clients ADD COLUMN client_str_id VARCHAR(255)"
+            )
         if "keyword_filtered" not in news_cols:
             migrations.append(
                 "ALTER TABLE news ADD COLUMN keyword_filtered BOOLEAN NOT NULL DEFAULT 0"
