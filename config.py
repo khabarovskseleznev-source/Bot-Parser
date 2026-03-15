@@ -28,8 +28,8 @@ class AppSettings(BaseSettings):
     # Пути
     data_path: Path = Path("./data")
 
-    # Groq
-    groq_api_key: str = ""
+    # OpenRouter
+    openrouter_api_key: str = ""
 
     @property
     def db_path(self) -> Path:
@@ -56,7 +56,7 @@ def load_client_configs(clients_path: Path) -> dict[str, ClientConfig]:
     configs: dict[str, ClientConfig] = {}
 
     if not clients_path.exists():
-        logger.warning(f"Папка клиентов не найдена: {clients_path}")
+        logger.warning("Папка клиентов не найдена: {}", clients_path)
         return configs
 
     for config_file in clients_path.glob("*/config.json"):
@@ -64,11 +64,11 @@ def load_client_configs(clients_path: Path) -> dict[str, ClientConfig]:
             data = json.loads(config_file.read_text(encoding="utf-8"))
             client_config = ClientConfig.model_validate(data)
             configs[client_config.client_id] = client_config
-            logger.info(f"Загружен конфиг клиента: {client_config.client_id}")
+            logger.info("Загружен конфиг клиента: {}", client_config.client_id)
         except Exception:
-            logger.exception(f"Ошибка загрузки конфига: {config_file}")
+            logger.exception("Ошибка загрузки конфига: {}", config_file)
 
-    logger.info(f"Загружено клиентов: {len(configs)}")
+    logger.info("Загружено клиентов: {}", len(configs))
     return configs
 
 

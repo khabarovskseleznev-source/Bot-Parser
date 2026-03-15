@@ -91,9 +91,10 @@ async def build_pipelines(
                 client_str_id=client_str_id,
                 chroma_path=chroma_path,
                 telegram_chat_id=config.telegram_chat_id,
-                groq_api_key=settings.groq_api_key,
+                openrouter_api_key=settings.openrouter_api_key,
                 sender=sender,
                 min_content_length=config.filters.min_content_length,
+                deduplication_threshold=config.analysis.deduplication_threshold,
             )
             logger.info("Pipeline создан: {} (db_id={})", client_str_id, client.id)
 
@@ -123,7 +124,7 @@ def _register_digest_jobs(
         if frequency == "instant":
             continue  # instant-режим не использует дайджест-джобы
 
-        client_id = pipeline._client_id
+        client_id = pipeline.client_id
         chat_id = config.telegram_chat_id
 
         if frequency == "hourly":

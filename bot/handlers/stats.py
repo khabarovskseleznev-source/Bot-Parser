@@ -11,11 +11,9 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 from loguru import logger
-from sqlalchemy import select
 
-from database.crud import get_feedback_stats
+from database.crud import get_client_by_chat_id, get_feedback_stats
 from database.db import get_session
-from database.models import Client
 
 router = Router(name="stats")
 
@@ -36,10 +34,7 @@ async def cmd_stats(message: Message) -> None:
     chat_id = message.chat.id
 
     async for session in get_session():
-        result = await session.execute(
-            select(Client).where(Client.telegram_chat_id == chat_id)
-        )
-        client = result.scalar_one_or_none()
+        client = await get_client_by_chat_id(session, chat_id)
         if client is None:
             await message.answer("Сначала отправьте /start.")
             return

@@ -9,11 +9,9 @@ Callback-данные формата: fb:<reaction>:<news_id>
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 from loguru import logger
-from sqlalchemy import select
 
-from database.crud import save_feedback, update_importance_by_feedback
+from database.crud import get_client_by_chat_id, save_feedback, update_importance_by_feedback
 from database.db import get_session
-from database.models import Client
 
 router = Router(name="feedback")
 
@@ -50,10 +48,7 @@ async def cb_feedback(callback: CallbackQuery) -> None:
     chat_id = callback.message.chat.id
 
     async for session in get_session():
-        result = await session.execute(
-            select(Client).where(Client.telegram_chat_id == chat_id)
-        )
-        client = result.scalar_one_or_none()
+        client = await get_client_by_chat_id(session, chat_id)
         if client is None:
             await callback.answer("Сначала отправьте /start.", show_alert=True)
             return

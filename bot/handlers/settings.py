@@ -21,8 +21,9 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.orm.attributes import flag_modified
 
+from database.crud import get_client_by_chat_id
 from database.db import get_session
-from database.models import Client, Settings
+from database.models import Settings
 
 router = Router(name="settings")
 
@@ -82,10 +83,7 @@ async def _get_or_create_settings(chat_id: int) -> tuple[int, Settings]:
         ValueError: Клиент не найден в БД.
     """
     async for session in get_session():
-        result = await session.execute(
-            select(Client).where(Client.telegram_chat_id == chat_id)
-        )
-        client = result.scalar_one_or_none()
+        client = await get_client_by_chat_id(session, chat_id)
         if client is None:
             raise ValueError(f"Клиент не найден: chat_id={chat_id}")
 
@@ -154,10 +152,7 @@ async def process_keywords(message: Message, state: FSMContext) -> None:
         keywords = [kw.strip() for kw in text.split(",") if kw.strip()]
 
     async for session in get_session():
-        result = await session.execute(
-            select(Client).where(Client.telegram_chat_id == message.chat.id)
-        )
-        client = result.scalar_one_or_none()
+        client = await get_client_by_chat_id(session, message.chat.id)
         if client is None:
             await message.answer("Сначала отправьте /start.")
             return
@@ -189,10 +184,7 @@ async def cb_frequency(callback: CallbackQuery) -> None:
         return
 
     async for session in get_session():
-        result = await session.execute(
-            select(Client).where(Client.telegram_chat_id == callback.message.chat.id)
-        )
-        client = result.scalar_one_or_none()
+        client = await get_client_by_chat_id(session, callback.message.chat.id)
         if client is None:
             await callback.answer("Сначала отправьте /start.", show_alert=True)
             return
@@ -230,10 +222,7 @@ async def cb_digest_mode(callback: CallbackQuery) -> None:
         return
 
     async for session in get_session():
-        result = await session.execute(
-            select(Client).where(Client.telegram_chat_id == callback.message.chat.id)
-        )
-        client = result.scalar_one_or_none()
+        client = await get_client_by_chat_id(session, callback.message.chat.id)
         if client is None:
             await callback.answer("Сначала отправьте /start.", show_alert=True)
             return

@@ -1,7 +1,7 @@
 """
-Вызов LLM через Groq API (OpenAI-совместимый).
+Вызов LLM через OpenRouter API (OpenAI-совместимый).
 
-Формирует промпт с few-shot контекстом от RAG, отправляет на Groq,
+Формирует промпт с few-shot контекстом от RAG, отправляет на OpenRouter,
 парсит структурированный ответ (summary / sentiment / hashtags).
 
 Fallback: если ответ не удалось распарсить — возвращает пустые поля.
@@ -116,10 +116,10 @@ def _parse_response(raw: str) -> LLMResult:
 
 
 class LLMClient:
-    """Клиент для работы с Groq API.
+    """Клиент для работы с OpenRouter API.
 
     Args:
-        api_key: Groq API key (по умолчанию из GROQ_API_KEY env).
+        api_key: OpenRouter API key (по умолчанию из OPENROUTER_API_KEY env).
         model: Название модели.
         timeout: Таймаут запроса в секундах.
     """
@@ -133,6 +133,18 @@ class LLMClient:
         self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
         self._model = model
         self._timeout = aiohttp.ClientTimeout(total=timeout)
+        self._session: aiohttp.ClientSession | None = None
+
+    def _get_session(self) -> aiohttp.ClientSession:
+        """Получить или создать переиспользуемую aiohttp-сессию."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession(timeout=self._timeout)
+        return self._session
+
+    async def close(self) -> None:
+        """Закрыть HTTP-сессию."""
+        if self._session and not self._session.closed:
+            await self._session.close()
 
     async def analyze(
         self,
@@ -169,17 +181,17 @@ class LLMClient:
         }
 
         try:
-            async with aiohttp.ClientSession(timeout=self._timeout) as session:
-                async with session.post(
-                    OPENROUTER_API_URL,
-                    json=payload,
-                    headers=headers,
-                ) as resp:
-                    resp.raise_for_status()
-                    data = await resp.json()
-                    raw = data["choices"][0]["message"]["content"]
+            session = self._get_session()
+            async with session.post(
+                OPENROUTER_API_URL,
+                json=payload,
+                headers=headers,
+            ) as resp:
+                resp.raise_for_status()
+                data = await resp.json()
+                raw = data["choices"][0]["message"]["content"]
         except aiohttp.ClientError as exc:
-            logger.error("LLM: ошибка подключения к Groq: {}", exc)
+            logger.error("LLM: ошибка подключения к OpenRouter: {}", exc)
             return LLMResult()
         except Exception:
             logger.exception("LLM: непредвиденная ошибка")

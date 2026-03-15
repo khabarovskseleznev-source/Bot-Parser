@@ -8,7 +8,8 @@
 Порядок: hash → semantic. В ChromaDB записывается только после прохождения обоих.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Optional
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +29,7 @@ class DeduplicationResult:
     is_duplicate: bool
     reason: str  # 'hash', 'semantic', 'unique'
     similarity: float = 0.0  # для semantic
+    embedding: Optional[list[float]] = field(default=None, repr=False)  # переиспользуется в pipeline
 
 
 class Deduplicator:
@@ -86,6 +88,7 @@ class Deduplicator:
                 is_duplicate=True,
                 reason="semantic",
                 similarity=similarity,
+                embedding=embedding,
             )
 
-        return DeduplicationResult(is_duplicate=False, reason="unique")
+        return DeduplicationResult(is_duplicate=False, reason="unique", embedding=embedding)

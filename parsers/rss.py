@@ -61,7 +61,7 @@ class RSSParser(BaseParser):
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=30),
-        reraise=False,
+        reraise=True,
     )
     async def _fetch_feed(self) -> feedparser.util.FeedParserDict:
         """Загрузить RSS-ленту (с повторами при ошибке)."""

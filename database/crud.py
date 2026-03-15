@@ -373,6 +373,25 @@ async def get_source_by_url(
     return result.scalar_one_or_none()
 
 
+async def get_client_by_chat_id(
+    session: AsyncSession,
+    chat_id: int,
+) -> Optional[Client]:
+    """Найти клиента по Telegram chat ID.
+
+    Args:
+        session: Сессия SQLAlchemy.
+        chat_id: Telegram chat ID.
+
+    Returns:
+        Объект Client или None.
+    """
+    result = await session.execute(
+        select(Client).where(Client.telegram_chat_id == chat_id)
+    )
+    return result.scalar_one_or_none()
+
+
 async def get_or_create_client(
     session: AsyncSession,
     client_str_id: str,

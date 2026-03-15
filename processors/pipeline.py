@@ -31,7 +31,7 @@ from database.crud import (
 from database.db import get_session
 from parsers.base import ParsedItem
 from processors.deduplicator import Deduplicator
-from processors.embeddings import get_embedding
+from processors.embeddings import get_embedding  # fallback если embedding не из дедупликатора
 from processors.llm import LLMClient
 from processors.rag import RAGPipeline
 from processors.vector_store import VectorStore
@@ -48,7 +48,7 @@ class NewsPipeline:
         client_str_id: Строковый ID клиента (из конфига, для ChromaDB).
         chroma_path: Корневая директория для ChromaDB (data/chroma).
         telegram_chat_id: Chat ID клиента для отправки новостей.
-        groq_api_key: API ключ Groq.
+        openrouter_api_key: API ключ OpenRouter.
         sender: Экземпляр NewsSender для доставки в Telegram (опционально).
     """
 
@@ -58,9 +58,10 @@ class NewsPipeline:
         client_str_id: str,
         chroma_path: Path,
         telegram_chat_id: int = 0,
-        groq_api_key: str = "",
+        openrouter_api_key: str = "",
         sender: Optional["NewsSender"] = None,
         min_content_length: int = 0,
+        deduplication_threshold: float = 0.85,
     ) -> None:
         self._client_id = client_id
         self._telegram_chat_id = telegram_chat_id
@@ -70,15 +71,24 @@ class NewsPipeline:
             client_id=client_str_id,
             persist_directory=chroma_path,
         )
-        self._deduplicator = Deduplicator(self._vector_store)
+        self._deduplicator = Deduplicator(self._vector_store, similarity_threshold=deduplication_threshold)
         self._rag = RAGPipeline(self._vector_store)
-        self._llm = LLMClient(api_key=groq_api_key)
+        self._llm = LLMClient(api_key=openrouter_api_key)
+
+    @property
+    def client_id(self) -> int:
+        """Числовой ID клиента в БД."""
+        return self._client_id
 
     async def _process_item(
         self,
         session: AsyncSession,
         source_config: SourceConfig,
         item: ParsedItem,
+        keywords: list[str],
+        low_priority_ids: set[int],
+        liked_ids: set[int],
+        frequency: str,
     ) -> None:
         """Обработать одну новость.
 
@@ -86,6 +96,10 @@ class NewsPipeline:
             session: Сессия SQLAlchemy.
             source_config: Конфиг источника из ClientConfig.
             item: Распарсенная новость.
+            keywords: Ключевые слова клиента (предзагружены на batch).
+            low_priority_ids: Множество низкоприоритетных source_id.
+            liked_ids: Множество news_id лайкнутых новостей.
+            frequency: Режим доставки (instant/hourly/daily).
         """
         # 1. Получить/создать источник в БД
         source = await get_or_create_source(
@@ -137,8 +151,6 @@ class NewsPipeline:
             return
 
         # 3.5. Keyword-фильтрация
-        client_settings = await get_client_settings(session, self._client_id)
-        keywords = client_settings.keywords if client_settings else []
         if keywords:
             text_lower = (item.title + " " + item.content).lower()
             if not any(kw.lower() in text_lower for kw in keywords):
@@ -152,7 +164,6 @@ class NewsPipeline:
                 return
 
         # 3.6. Фильтр низкоприоритетных источников (преобладающие дизлайки)
-        low_priority_ids = await get_low_priority_source_ids(session, self._client_id)
         if source.id in low_priority_ids:
             news.keyword_filtered = True
             await session.commit()
@@ -163,7 +174,6 @@ class NewsPipeline:
             return
 
         # 4. RAG-контекст для LLM (с бустом лайкнутых новостей)
-        liked_ids = await get_liked_news_ids(session, self._client_id)
         rag_ctx = await self._rag.build_context(item.title, item.content, liked_news_ids=liked_ids)
 
         # 5. Анализ через LLM
@@ -184,9 +194,11 @@ class NewsPipeline:
             importance_score=llm_result.importance_score,
         )
 
-        # 7. Добавить эмбеддинг в ChromaDB
-        text_for_embed = item.title + " " + item.content
-        embedding = await get_embedding(text_for_embed)
+        # 7. Добавить эмбеддинг в ChromaDB (переиспользуем из дедупликатора)
+        embedding = dup_result.embedding
+        if embedding is None:
+            text_for_embed = item.title + " " + item.content
+            embedding = await get_embedding(text_for_embed)
         content_hash = compute_hash(item.title + item.content)
 
         await self._vector_store.add(
@@ -212,7 +224,6 @@ class NewsPipeline:
         )
 
         # 8. Отправка в Telegram (только instant-режим; hourly/daily — через дайджест-джоб)
-        frequency = client_settings.frequency if client_settings else "instant"
         if self._sender and self._telegram_chat_id and frequency == "instant":
             # Обновляем объект news локально, чтобы не делать лишний SELECT
             news.title_ru = llm_result.title_ru or None
@@ -246,9 +257,22 @@ class NewsPipeline:
         )
 
         async for session in get_session():
+            # Предзагрузка данных один раз на весь batch (вместо per-item)
+            client_settings = await get_client_settings(session, self._client_id)
+            keywords = client_settings.keywords if client_settings else []
+            frequency = client_settings.frequency if client_settings else "instant"
+            low_priority_ids = await get_low_priority_source_ids(session, self._client_id)
+            liked_ids = await get_liked_news_ids(session, self._client_id)
+
             for item in items:
                 try:
-                    await self._process_item(session, source_config, item)
+                    await self._process_item(
+                        session, source_config, item,
+                        keywords=keywords,
+                        low_priority_ids=low_priority_ids,
+                        liked_ids=liked_ids,
+                        frequency=frequency,
+                    )
                 except Exception:
                     logger.exception(
                         "Ошибка обработки новости: source={}, url={}",
