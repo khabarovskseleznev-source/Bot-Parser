@@ -32,8 +32,9 @@ class Client(Base):
     __tablename__ = "clients"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    client_str_id: Mapped[str] = mapped_column(String(255), unique=True, index=True)  # из config.json
     name: Mapped[str] = mapped_column(String(255))
-    telegram_chat_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)
+    telegram_chat_id: Mapped[int] = mapped_column(BigInteger, index=True)  # не unique — несколько клиентов могут иметь один chat_id
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     config_path: Mapped[str] = mapped_column(String(512))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

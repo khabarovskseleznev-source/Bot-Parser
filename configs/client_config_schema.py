@@ -27,6 +27,7 @@ class SourceConfig(BaseModel):
     is_active: bool = True
     fetch_interval_minutes: int = 60
     selector: Optional[SelectorConfig] = None  # только для type="website"
+    links_selector: Optional[str] = None  # CSS-селектор ссылок на статьи (index page)
 
 
 class AnalysisConfig(BaseModel):

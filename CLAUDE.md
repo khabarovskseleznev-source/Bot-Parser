@@ -20,6 +20,7 @@
 | Настройка и деплой | [docs/setup.md](docs/setup.md) |
 | Backlog | [docs/backlog.md](docs/backlog.md) |
 | Дорожная карта | [docs/roadmap.md](docs/roadmap.md) |
+| Ошибки и решения | [docs/troubleshooting.md](docs/troubleshooting.md) |
 
 ---
 

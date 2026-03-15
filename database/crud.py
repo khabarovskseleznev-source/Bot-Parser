@@ -382,9 +382,13 @@ async def get_or_create_client(
 ) -> Client:
     """Вернуть существующего клиента или создать нового.
 
+    Поиск ведётся по client_str_id (уникальный строковый ID из конфига),
+    а не по telegram_chat_id — это позволяет нескольким клиентам
+    иметь одинаковый chat_id (например, бот тестируется в одном чате).
+
     Args:
         session: Сессия SQLAlchemy.
-        client_str_id: Строковый ID клиента из конфига.
+        client_str_id: Строковый ID клиента из конфига (уникален).
         name: Название клиента.
         telegram_chat_id: Telegram chat ID клиента.
         config_path: Путь к файлу конфига.
@@ -393,13 +397,18 @@ async def get_or_create_client(
         Объект Client.
     """
     result = await session.execute(
-        select(Client).where(Client.telegram_chat_id == telegram_chat_id)
+        select(Client).where(Client.client_str_id == client_str_id)
     )
     client = result.scalar_one_or_none()
     if client is not None:
+        # Обновляем chat_id на случай его изменения в конфиге
+        if client.telegram_chat_id != telegram_chat_id:
+            client.telegram_chat_id = telegram_chat_id
+            await session.commit()
         return client
 
     client = Client(
+        client_str_id=client_str_id,
         name=name,
         telegram_chat_id=telegram_chat_id,
         config_path=config_path,
@@ -428,6 +437,43 @@ async def get_client_settings(
         select(Settings).where(Settings.client_id == client_id)
     )
     return result.scalar_one_or_none()
+
+
+async def upsert_client_settings(
+    session: AsyncSession,
+    client_id: int,
+    keywords: list[str],
+    exclude_keywords: list[str],
+    frequency: str,
+    analysis_flags: dict,
+) -> Settings:
+    """Создать или обновить настройки клиента из config.json.
+
+    Args:
+        session: Сессия SQLAlchemy.
+        client_id: ID клиента.
+        keywords: Список ключевых слов для фильтрации.
+        exclude_keywords: Список стоп-слов.
+        frequency: Частота доставки ("instant", "hourly", "daily").
+        analysis_flags: Словарь флагов анализа (summary, sentiment и т.д.).
+
+    Returns:
+        Объект Settings.
+    """
+    result = await session.execute(
+        select(Settings).where(Settings.client_id == client_id)
+    )
+    s = result.scalar_one_or_none()
+    if s is None:
+        s = Settings(client_id=client_id)
+        session.add(s)
+    s.keywords = keywords
+    s.exclude_keywords = exclude_keywords
+    s.frequency = frequency
+    s.analysis_flags = analysis_flags
+    await session.commit()
+    logger.info("Settings upserted: client_id={}, keywords={}", client_id, keywords)
+    return s
 
 
 async def get_unsent_news(

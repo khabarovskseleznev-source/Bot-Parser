@@ -13,7 +13,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -70,6 +70,7 @@ def _build_parser(
                 source_name=source.name,
                 url=source.url,
                 selector=source.selector,
+                links_selector=source.links_selector,
             )
         case "social":
             return SocialParser(source_name=source.name, url=source.url)
@@ -105,7 +106,12 @@ class ParserScheduler:
         self._scheduler = AsyncIOScheduler(timezone="UTC")
 
     def _register_jobs(self) -> None:
-        """Зарегистрировать задачи для всех активных источников всех клиентов."""
+        """Зарегистрировать задачи для всех активных источников всех клиентов.
+
+        Источники стартуют с задержкой 30 сек друг за другом, чтобы не
+        перегружать RAM при одновременной генерации эмбеддингов.
+        """
+        stagger_seconds = 0
         for client_id, config in self._client_configs.items():
             for source in config.sources:
                 if not source.is_active:
@@ -122,6 +128,7 @@ class ParserScheduler:
                 )
 
                 job_id = f"{client_id}__{source.name}"
+                first_run = datetime.now(timezone.utc) + timedelta(seconds=stagger_seconds)
                 self._scheduler.add_job(
                     self._run_parser,
                     trigger=IntervalTrigger(minutes=source.fetch_interval_minutes),
@@ -130,13 +137,15 @@ class ParserScheduler:
                     name=f"[{client_id}] {source.name}",
                     replace_existing=True,
                     max_instances=1,  # не запускать повторно, если предыдущий ещё работает
-                    next_run_time=datetime.now(timezone.utc),  # запустить сразу при старте
+                    next_run_time=first_run,
                 )
                 logger.info(
-                    "Задача зарегистрирована: {} (каждые {} мин)",
+                    "Задача зарегистрирована: {} (каждые {} мин, первый запуск через {} сек)",
                     job_id,
                     source.fetch_interval_minutes,
+                    stagger_seconds,
                 )
+                stagger_seconds += 30  # каждый следующий источник стартует на 30 сек позже
 
     async def _run_parser(
         self,

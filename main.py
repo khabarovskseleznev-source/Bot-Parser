@@ -22,7 +22,7 @@ from loguru import logger
 from bot.bot import create_bot, create_dispatcher
 from bot.sender import NewsSender
 from config import load_client_configs, settings
-from database.crud import get_or_create_client
+from database.crud import get_or_create_client, upsert_client_settings
 from database.db import create_tables, get_session, init_db, run_migrations
 from processors.pipeline import NewsPipeline, make_on_items_callback
 from scheduler import ParserScheduler
@@ -70,6 +70,20 @@ async def build_pipelines(
                 name=config.client_name,
                 telegram_chat_id=config.telegram_chat_id,
                 config_path=str(settings.clients_path / client_str_id / "config.json"),
+            )
+
+            await upsert_client_settings(
+                session=session,
+                client_id=client.id,
+                keywords=list(config.keywords),
+                exclude_keywords=list(config.exclude_keywords),
+                frequency=config.delivery.frequency,
+                analysis_flags={
+                    "summary": config.analysis.summary,
+                    "sentiment": config.analysis.sentiment,
+                    "ner": config.analysis.ner,
+                    "hashtags": config.analysis.hashtags,
+                },
             )
 
             pipelines[client_str_id] = NewsPipeline(
