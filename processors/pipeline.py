@@ -195,10 +195,8 @@ class NewsPipeline:
         )
 
         # 7. Добавить эмбеддинг в ChromaDB (переиспользуем из дедупликатора)
-        embedding = dup_result.embedding
-        if embedding is None:
-            text_for_embed = item.title + " " + item.content
-            embedding = await get_embedding(text_for_embed)
+        text_for_embed = item.title + " " + item.content
+        embedding = dup_result.embedding or await get_embedding(text_for_embed)
         content_hash = compute_hash(item.title + item.content)
 
         await self._vector_store.add(
@@ -259,6 +257,12 @@ class NewsPipeline:
         async for session in get_session():
             # Предзагрузка данных один раз на весь batch (вместо per-item)
             client_settings = await get_client_settings(session, self._client_id)
+            if client_settings is None:
+                logger.warning(
+                    "Settings не найдены для client_id={} — keywords пусты, frequency=instant. "
+                    "Проверь регистрацию клиента в БД.",
+                    self._client_id,
+                )
             keywords = client_settings.keywords if client_settings else []
             frequency = client_settings.frequency if client_settings else "instant"
             low_priority_ids = await get_low_priority_source_ids(session, self._client_id)
