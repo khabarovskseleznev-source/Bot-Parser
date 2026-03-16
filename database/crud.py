@@ -420,7 +420,7 @@ async def get_or_create_client(
     )
     client = result.scalar_one_or_none()
 
-    # Fallback: поиск по chat_id для обратной совместимости
+    # Fallback: поиск по chat_id только если client_str_id ещё NULL
     # (записи до миграции client_str_id могут иметь NULL в этом поле)
     if client is None:
         result = await session.execute(
@@ -429,10 +429,11 @@ async def get_or_create_client(
                 Client.client_str_id.is_(None),
             )
         )
-        client = result.scalar_one_or_none()
-        if client is not None:
-            client.client_str_id = client_str_id
-            logger.info("Миграция client_str_id={} для client.id={}", client_str_id, client.id)
+        legacy = result.scalar_one_or_none()
+        if legacy is not None:
+            legacy.client_str_id = client_str_id
+            client = legacy
+            logger.info("Миграция client_str_id={} для client.id={}", client_str_id, legacy.id)
 
     if client is not None:
         # Обновляем chat_id на случай его изменения в конфиге
