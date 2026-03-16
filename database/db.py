@@ -82,27 +82,30 @@ async def run_migrations(db_path: str) -> None:
         for sql in migrations:
             if sql == "__fix_clients_unique__":
                 logger.info("Миграция БД: удаление UNIQUE constraint на clients.telegram_chat_id")
-                await db.executescript("""
-                    PRAGMA foreign_keys=OFF;
+                await db.execute("PRAGMA foreign_keys=OFF")
+                await db.execute("""
                     CREATE TABLE IF NOT EXISTS clients_new (
                         id INTEGER PRIMARY KEY,
                         client_str_id VARCHAR(255) UNIQUE,
-                        name VARCHAR(255) NOT NULL,
-                        telegram_chat_id BIGINT NOT NULL,
+                        name VARCHAR(255) NOT NULL DEFAULT '',
+                        telegram_chat_id BIGINT NOT NULL DEFAULT 0,
                         is_active BOOLEAN NOT NULL DEFAULT 1,
                         config_path VARCHAR(512) NOT NULL DEFAULT '',
                         created_at DATETIME DEFAULT (CURRENT_TIMESTAMP),
                         updated_at DATETIME DEFAULT (CURRENT_TIMESTAMP)
-                    );
-                    INSERT OR IGNORE INTO clients_new
-                        SELECT id, client_str_id, name, telegram_chat_id, is_active, config_path, created_at, updated_at
-                        FROM clients;
-                    DROP TABLE clients;
-                    ALTER TABLE clients_new RENAME TO clients;
-                    CREATE INDEX IF NOT EXISTS ix_clients_client_str_id ON clients (client_str_id);
-                    CREATE INDEX IF NOT EXISTS ix_clients_telegram_chat_id ON clients (telegram_chat_id);
-                    PRAGMA foreign_keys=ON;
+                    )
                 """)
+                await db.execute("""
+                    INSERT OR IGNORE INTO clients_new
+                        (id, client_str_id, name, telegram_chat_id, is_active, config_path, created_at, updated_at)
+                    SELECT id, client_str_id, name, telegram_chat_id, is_active, config_path, created_at, updated_at
+                    FROM clients
+                """)
+                await db.execute("DROP TABLE clients")
+                await db.execute("ALTER TABLE clients_new RENAME TO clients")
+                await db.execute("CREATE INDEX IF NOT EXISTS ix_clients_client_str_id ON clients (client_str_id)")
+                await db.execute("CREATE INDEX IF NOT EXISTS ix_clients_telegram_chat_id ON clients (telegram_chat_id)")
+                await db.execute("PRAGMA foreign_keys=ON")
             else:
                 logger.info("Миграция БД: {}", sql)
                 await db.execute(sql)
